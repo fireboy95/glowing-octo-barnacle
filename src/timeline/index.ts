@@ -5,6 +5,8 @@ import {
   normalizePose3d,
 } from '../renderer/normalizePose3d';
 
+export { type EasingFunction, interpolateNormalizedTimelinePose, slerpQuaternion } from './interpolate';
+
 export interface TimelineKeyframeInput {
   timeMs: number;
   pose: Pose3DInput;
@@ -27,19 +29,4 @@ export function createTimelineKeyframe(
     timeMs: input.timeMs,
     pose: normalizePose3d(input.pose, options),
   };
-}
-
-/**
- * Timeline interpolation should only accept normalized poses.
- */
-export function interpolateNormalizedTimelinePose(from: NormalizedPose3D, to: NormalizedPose3D, alpha: number): NormalizedPose3D {
-  if (alpha <= 0) {
-    return from;
-  }
-
-  if (alpha >= 1) {
-    return to;
-  }
-
-  return alpha < 0.5 ? from : to;
 }
