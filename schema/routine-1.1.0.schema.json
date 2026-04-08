@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schema/routine-1.1.0.schema.json",
+  "title": "Routine Schema v1.1.0",
+  "description": "Schema for structured movement/exercise routines with 3D pose support.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "type",
+    "id",
+    "title",
+    "bodyModel",
+    "items"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.1.0"
+    },
+    "type": {
+      "type": "string",
+      "const": "routine"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "bodyModel": {
+      "type": "string",
+      "enum": [
+        "human-2d-v1",
+        "human-3d-v1"
+      ]
+    },
+    "renderHints": {
+      "$ref": "#/$defs/renderHints"
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/routineItem"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "renderHints": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "dimension": {
+          "type": "string",
+          "enum": [
+            "2d",
+            "3d"
+          ]
+        }
+      }
+    },
+    "quaternion": {
+      "type": "array",
+      "description": "Quaternion as [x, y, z, w].",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "number"
+      }
+    },
+    "euler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        },
+        "order": {
+          "type": "string",
+          "enum": [
+            "XYZ",
+            "XZY",
+            "YXZ",
+            "YZX",
+            "ZXY",
+            "ZYX"
+          ],
+          "default": "XYZ"
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "rad",
+            "deg"
+          ],
+          "default": "rad"
+        }
+      }
+    },
+    "jointRotation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/quaternion"
+        },
+        {
+          "$ref": "#/$defs/euler"
+        }
+      ]
+    },
+    "pose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jointRotations"
+      ],
+      "properties": {
+        "jointRotations": {
+          "type": "object",
+          "description": "Map of joint names to rotations represented as quaternion or Euler angles.",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "#/$defs/jointRotation"
+          }
+        }
+      }
+    },
+    "movementStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "title",
+        "pose"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "movementStep"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pose": {
+          "$ref": "#/$defs/pose"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "exercise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "title",
+        "steps"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "exercise"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "repeat": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/movementStep"
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "rest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "durationMs"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "rest"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "routineItem": {
+      "description": "A single item in the routine flow.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/exercise"
+        },
+        {
+          "$ref": "#/$defs/rest"
+        },
+        {
+          "$ref": "#/$defs/movementStep"
+        }
+      ]
+    }
+  }
+}
