@@ -7,6 +7,8 @@
     "build": "webpack --mode production && cp index.html dist/index.html"
   },
   "devDependencies": {
+    "ts-loader": "^9.5.7",
+    "typescript": "^6.0.2",
     "webpack": "^5.102.1",
     "webpack-cli": "^6.0.1"
   }
