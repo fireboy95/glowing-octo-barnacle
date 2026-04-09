@@ -80,19 +80,38 @@
     </div>
     <script>
       (function loadRendererBundle() {
-        function appendBundle(src) {
-          const script = document.createElement('script');
-          script.src = src;
-          script.defer = true;
-          return script;
+        const appRoot = document.getElementById('app');
+        const bundleCandidates = ['./bundle.js', './dist/bundle.js'];
+        let candidateIndex = 0;
+
+        function showLoadError() {
+          if (!appRoot) {
+            return;
+          }
+
+          appRoot.innerHTML = `
+            <main>
+              <h1>Renderer Input Runner</h1>
+              <p>Could not load the JavaScript bundle.</p>
+              <p>Run <code>npm install</code>, then <code>npm run build</code>, and reopen <code>dist/index.html</code>.</p>
+            </main>
+          `;
         }
 
-        const primaryBundle = appendBundle('./bundle.js');
-        primaryBundle.onerror = function onPrimaryBundleError() {
-          document.body.appendChild(appendBundle('./dist/bundle.js'));
-        };
+        function loadNextBundle() {
+          if (candidateIndex >= bundleCandidates.length) {
+            showLoadError();
+            return;
+          }
 
-        document.body.appendChild(primaryBundle);
+          const script = document.createElement('script');
+          script.src = bundleCandidates[candidateIndex++];
+          script.defer = true;
+          script.onerror = loadNextBundle;
+          document.body.appendChild(script);
+        }
+
+        loadNextBundle();
       })();
     </script>
   </body>
