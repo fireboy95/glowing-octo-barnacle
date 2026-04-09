@@ -81,7 +81,17 @@
     <script>
       (function loadRendererBundle() {
         const appRoot = document.getElementById('app');
-        const bundleCandidates = ['./bundle.js', './dist/bundle.js'];
+        const basePath = window.location.pathname.replace(/[^/]*$/, '');
+        const bundleCandidates = [
+          './bundle.js',
+          './dist/bundle.js',
+          '../dist/bundle.js',
+          `${basePath}bundle.js`,
+          `${basePath}dist/bundle.js`,
+          '/bundle.js',
+          '/dist/bundle.js',
+        ];
+        const triedPaths = [];
         let candidateIndex = 0;
 
         function showLoadError() {
@@ -89,11 +99,14 @@
             return;
           }
 
+          const attempted = triedPaths.map((path) => `<li><code>${path}</code></li>`).join('');
           appRoot.innerHTML = `
             <main>
               <h1>Renderer Input Runner</h1>
               <p>Could not load the JavaScript bundle.</p>
               <p>Run <code>npm install</code>, then <code>npm run build</code>, and reopen <code>dist/index.html</code>.</p>
+              <p>Attempted bundle paths:</p>
+              <ul>${attempted}</ul>
             </main>
           `;
         }
@@ -105,7 +118,9 @@
           }
 
           const script = document.createElement('script');
-          script.src = bundleCandidates[candidateIndex++];
+          const nextPath = bundleCandidates[candidateIndex++];
+          triedPaths.push(nextPath);
+          script.src = nextPath;
           script.defer = true;
           script.onerror = loadNextBundle;
           document.body.appendChild(script);
