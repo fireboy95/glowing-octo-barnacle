@@ -78,6 +78,22 @@
         </p>
       </main>
     </div>
-    <script src="./bundle.js"></script>
+    <script>
+      (function loadRendererBundle() {
+        function appendBundle(src) {
+          const script = document.createElement('script');
+          script.src = src;
+          script.defer = true;
+          return script;
+        }
+
+        const primaryBundle = appendBundle('./bundle.js');
+        primaryBundle.onerror = function onPrimaryBundleError() {
+          document.body.appendChild(appendBundle('./dist/bundle.js'));
+        };
+
+        document.body.appendChild(primaryBundle);
+      })();
+    </script>
   </body>
 </html>
