@@ -101,59 +101,31 @@
     </div>
     <script>
       (function loadRendererBundle() {
-        const appRoot = document.getElementById('app');
-        const basePath = window.location.pathname.replace(/[^/]*$/, '');
-        const currentDirUrl = new URL('./', window.location.href);
-        const bundleCandidates = [
-          './bundle.js',
-          './dist/bundle.js',
-          '../dist/bundle.js',
-          `${basePath}bundle.js`,
-          `${basePath}dist/bundle.js`,
-          '/bundle.js',
-          '/dist/bundle.js',
-          new URL('bundle.js', currentDirUrl).href,
-          new URL('dist/bundle.js', currentDirUrl).href,
-          new URL('../dist/bundle.js', currentDirUrl).href,
-          '/workspace/glowing-octo-barnacle/bundle.js',
-          '/workspace/glowing-octo-barnacle/dist/bundle.js',
-        ];
-        const triedPaths = [];
-        let candidateIndex = 0;
+        const path = window.location.pathname;
+        const hasTrailingSlash = path.endsWith('/');
+        const basePath = hasTrailingSlash ? path : `${path}/`;
+        const bundleUrl = `${window.location.origin}${basePath}bundle.js`;
 
-        function showLoadError() {
+        const script = document.createElement('script');
+        script.src = bundleUrl;
+        script.defer = true;
+        script.onerror = function showLoadError() {
+          const appRoot = document.getElementById('app');
           if (!appRoot) {
             return;
           }
 
-          const attempted = triedPaths.map((path) => `<li><code>${path}</code></li>`).join('');
           appRoot.innerHTML = `
             <main>
               <h1>Renderer Input Runner</h1>
               <p>Could not load the JavaScript bundle.</p>
+              <p>Attempted URL: <code>${bundleUrl}</code></p>
               <p>Run <code>npm install</code>, then <code>npm run build</code>, and reopen <code>dist/index.html</code>.</p>
-              <p>Attempted bundle paths:</p>
-              <ul>${attempted}</ul>
             </main>
           `;
-        }
+        };
 
-        function loadNextBundle() {
-          if (candidateIndex >= bundleCandidates.length) {
-            showLoadError();
-            return;
-          }
-
-          const script = document.createElement('script');
-          const nextPath = bundleCandidates[candidateIndex++];
-          triedPaths.push(nextPath);
-          script.src = nextPath;
-          script.defer = true;
-          script.onerror = loadNextBundle;
-          document.body.appendChild(script);
-        }
-
-        loadNextBundle();
+        document.body.appendChild(script);
       })();
     </script>
   </body>

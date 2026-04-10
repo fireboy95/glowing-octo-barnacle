@@ -44,6 +44,13 @@ jobs:
         if: ${{ hashFiles('package.json') != '' }}
         run: npm run build --if-present
 
+      - name: Verify build artifact layout
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          test -f dist/index.html
+          test -f dist/bundle.js
+          ls -lah dist
+
       - name: Resolve publish directory
         id: publish_dir
         run: |
