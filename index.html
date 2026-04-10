@@ -101,10 +101,7 @@
     </div>
     <script>
       (function loadRendererBundle() {
-        const path = window.location.pathname;
-        const hasTrailingSlash = path.endsWith('/');
-        const basePath = hasTrailingSlash ? path : `${path}/`;
-        const bundleUrl = `${window.location.origin}${basePath}bundle.js`;
+        const bundleUrl = new URL('./bundle.js', window.location.href).toString();
 
         const script = document.createElement('script');
         script.src = bundleUrl;
