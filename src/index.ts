@@ -25,6 +25,12 @@ interface Segment {
   to: string;
 }
 
+interface ProjectedPoint {
+  x: number;
+  y: number;
+  depth: number;
+}
+
 interface AnimationRoutine {
   id: string;
   label: string;
@@ -75,6 +81,28 @@ const SEGMENTS: Segment[] = [
   { from: 'hipR', to: 'kneeR' },
   { from: 'kneeR', to: 'ankleR' },
 ];
+
+const BODY_RADIUS_BY_JOINT: Record<string, number> = {
+  pelvis: 0.16,
+  spineLower: 0.18,
+  spineUpper: 0.2,
+  neck: 0.09,
+  head: 0.13,
+  clavicleL: 0.09,
+  shoulderL: 0.11,
+  elbowL: 0.09,
+  wristL: 0.07,
+  clavicleR: 0.09,
+  shoulderR: 0.11,
+  elbowR: 0.09,
+  wristR: 0.07,
+  hipL: 0.12,
+  kneeL: 0.1,
+  ankleL: 0.08,
+  hipR: 0.12,
+  kneeR: 0.1,
+  ankleR: 0.08,
+};
 
 let currentNormalizedPose = buildRendererFrame(SAMPLE_INPUT).pose;
 let animationHandle: number | null = null;
@@ -260,7 +288,7 @@ function rotateAroundY(point: Vec3, angle: number): Vec3 {
   };
 }
 
-function projectPoint(point: Vec3, width: number, height: number): { x: number; y: number; depth: number } {
+function projectPoint(point: Vec3, width: number, height: number): ProjectedPoint {
   const zOffset = point.z + 3;
   const perspective = 280 / zOffset;
   return {
@@ -268,6 +296,23 @@ function projectPoint(point: Vec3, width: number, height: number): { x: number; 
     y: height / 2 - point.y * perspective,
     depth: zOffset,
   };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getBoneLightness(depth: number): number {
+  const normalizedDepth = clamp((depth - 2.25) / 1.9, 0, 1);
+  return 74 - normalizedDepth * 38;
+}
+
+function toHsl(hue: number, saturation: number, lightness: number, alpha = 1): string {
+  return `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
+}
+
+function projectThickness(thickness: number, depth: number): number {
+  return clamp((thickness * 280) / depth, 2, 90);
 }
 
 function buildAnimatedSkeleton(timeSeconds: number): Record<string, Vec3> {
@@ -330,12 +375,106 @@ function drawRendererFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContex
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
-  const projectedJoints: Record<string, { x: number; y: number; depth: number }> = {};
+  const projectedJoints: Record<string, ProjectedPoint> = {};
   for (const [joint, position] of Object.entries(joints)) {
     projectedJoints[joint] = projectPoint(position, width, height);
   }
 
+  const groundY = height * 0.86;
+  const pelvisProjection = projectedJoints.pelvis;
+  if (pelvisProjection) {
+    const shadowWidth = 180 + clamp((pelvisProjection.depth - 2.4) * 75, -30, 120);
+    const shadowHeight = 38 + clamp((pelvisProjection.depth - 2.4) * 20, -8, 35);
+    const shadowGradient = ctx.createRadialGradient(
+      pelvisProjection.x,
+      groundY,
+      12,
+      pelvisProjection.x,
+      groundY,
+      shadowWidth * 0.48,
+    );
+    shadowGradient.addColorStop(0, 'rgba(8, 16, 32, 0.48)');
+    shadowGradient.addColorStop(1, 'rgba(8, 16, 32, 0)');
+    ctx.fillStyle = shadowGradient;
+    ctx.beginPath();
+    ctx.ellipse(pelvisProjection.x, groundY, shadowWidth, shadowHeight, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   const sortedSegments = [...SEGMENTS].sort((a, b) => projectedJoints[b.to].depth - projectedJoints[a.to].depth);
+
+  const torsoPoints = ['clavicleL', 'shoulderL', 'hipL', 'pelvis', 'hipR', 'shoulderR', 'clavicleR']
+    .map((joint) => projectedJoints[joint])
+    .filter((point): point is ProjectedPoint => Boolean(point));
+
+  if (torsoPoints.length >= 4) {
+    const averageTorsoDepth = torsoPoints.reduce((sum, point) => sum + point.depth, 0) / torsoPoints.length;
+    const torsoGradient = ctx.createLinearGradient(0, Math.min(...torsoPoints.map((point) => point.y)), 0, Math.max(...torsoPoints.map((point) => point.y)));
+    const torsoLightness = getBoneLightness(averageTorsoDepth);
+    torsoGradient.addColorStop(0, toHsl(27, 55, torsoLightness + 7, 0.6));
+    torsoGradient.addColorStop(1, toHsl(21, 50, torsoLightness - 8, 0.52));
+    ctx.fillStyle = torsoGradient;
+    ctx.beginPath();
+    ctx.moveTo(torsoPoints[0].x, torsoPoints[0].y);
+    for (let index = 1; index < torsoPoints.length; index += 1) {
+      ctx.lineTo(torsoPoints[index].x, torsoPoints[index].y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  for (const segment of sortedSegments) {
+    const start = projectedJoints[segment.from];
+    const end = projectedJoints[segment.to];
+
+    if (!start || !end) {
+      continue;
+    }
+
+    const averageDepth = (start.depth + end.depth) / 2;
+    const startThickness = projectThickness(BODY_RADIUS_BY_JOINT[segment.from] ?? 0.1, start.depth);
+    const endThickness = projectThickness(BODY_RADIUS_BY_JOINT[segment.to] ?? 0.09, end.depth);
+    const bodyThickness = (startThickness + endThickness) / 2;
+    const skinLightness = getBoneLightness(averageDepth);
+    const limbGradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+    limbGradient.addColorStop(0, toHsl(24, 58, skinLightness + 8, 0.7));
+    limbGradient.addColorStop(0.55, toHsl(20, 52, skinLightness, 0.72));
+    limbGradient.addColorStop(1, toHsl(17, 48, skinLightness - 6, 0.68));
+
+    ctx.strokeStyle = 'rgba(44, 24, 12, 0.22)';
+    ctx.lineWidth = bodyThickness * 1.12;
+    ctx.beginPath();
+    ctx.moveTo(start.x + 1.5, start.y + 1.5);
+    ctx.lineTo(end.x + 1.5, end.y + 1.5);
+    ctx.stroke();
+
+    ctx.strokeStyle = limbGradient;
+    ctx.lineWidth = bodyThickness;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  }
+
+  const headProjection = projectedJoints.head;
+  if (headProjection) {
+    const headRadius = projectThickness(BODY_RADIUS_BY_JOINT.head, headProjection.depth);
+    const headGradient = ctx.createRadialGradient(
+      headProjection.x - headRadius * 0.35,
+      headProjection.y - headRadius * 0.4,
+      headRadius * 0.3,
+      headProjection.x,
+      headProjection.y,
+      headRadius,
+    );
+    const headLightness = getBoneLightness(headProjection.depth);
+    headGradient.addColorStop(0, toHsl(28, 55, headLightness + 14, 0.78));
+    headGradient.addColorStop(1, toHsl(19, 46, headLightness - 6, 0.74));
+    ctx.fillStyle = headGradient;
+    ctx.beginPath();
+    ctx.ellipse(headProjection.x, headProjection.y, headRadius * 0.85, headRadius, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   ctx.lineCap = 'round';
   for (const segment of sortedSegments) {
@@ -347,8 +486,24 @@ function drawRendererFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContex
     }
 
     const averageDepth = (start.depth + end.depth) / 2;
-    const lineWidth = Math.max(2, 14 - averageDepth * 2.5);
-    ctx.strokeStyle = 'rgba(140, 207, 255, 0.88)';
+    const normalizedDepth = clamp((averageDepth - 2.2) / 2.1, 0, 1);
+    const lineWidth = Math.max(2.2, 16 - averageDepth * 2.6);
+    const glowWidth = lineWidth * 1.8;
+    const startLightness = getBoneLightness(start.depth);
+    const endLightness = getBoneLightness(end.depth);
+    const boneGradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y);
+    boneGradient.addColorStop(0, toHsl(204, 88, startLightness, 0.96));
+    boneGradient.addColorStop(0.5, toHsl(196, 100, (startLightness + endLightness) / 2 + 5, 0.98));
+    boneGradient.addColorStop(1, toHsl(204, 90, endLightness, 0.96));
+
+    ctx.strokeStyle = `rgba(122, 226, 255, ${0.2 - normalizedDepth * 0.08})`;
+    ctx.lineWidth = glowWidth;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = boneGradient;
     ctx.lineWidth = lineWidth;
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
@@ -357,10 +512,22 @@ function drawRendererFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContex
   }
 
   for (const point of Object.values(projectedJoints)) {
-    const radius = Math.max(2, 10 - point.depth * 1.9);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    const radius = Math.max(2.2, 11 - point.depth * 2);
+    const coreRadius = radius * 0.56;
+
+    const haloGradient = ctx.createRadialGradient(point.x, point.y, coreRadius * 0.2, point.x, point.y, radius);
+    haloGradient.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+    haloGradient.addColorStop(0.7, 'rgba(170, 238, 255, 0.9)');
+    haloGradient.addColorStop(1, 'rgba(120, 208, 255, 0.22)');
+
+    ctx.fillStyle = haloGradient;
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
+    ctx.beginPath();
+    ctx.arc(point.x - radius * 0.2, point.y - radius * 0.2, coreRadius * 0.35, 0, Math.PI * 2);
     ctx.fill();
   }
 
