@@ -103,6 +103,7 @@
       (function loadRendererBundle() {
         const appRoot = document.getElementById('app');
         const basePath = window.location.pathname.replace(/[^/]*$/, '');
+        const currentDirUrl = new URL('./', window.location.href);
         const bundleCandidates = [
           './bundle.js',
           './dist/bundle.js',
@@ -111,6 +112,11 @@
           `${basePath}dist/bundle.js`,
           '/bundle.js',
           '/dist/bundle.js',
+          new URL('bundle.js', currentDirUrl).href,
+          new URL('dist/bundle.js', currentDirUrl).href,
+          new URL('../dist/bundle.js', currentDirUrl).href,
+          '/workspace/glowing-octo-barnacle/bundle.js',
+          '/workspace/glowing-octo-barnacle/dist/bundle.js',
         ];
         const triedPaths = [];
         let candidateIndex = 0;
