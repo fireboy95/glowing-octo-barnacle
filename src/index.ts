@@ -290,6 +290,56 @@ function normalizeQuaternionLength(value: number): number {
 
 const EXERCISE_ROUTINES: AnimationRoutine[] = [
   {
+    id: 'script-preview',
+    label: 'Script Preview',
+    description: 'Holds the pose from your executed JSON script with a subtle idle sway.',
+    speedMultiplier: 0.45,
+    transform: (joints, phase) => {
+      const getJoint = (jointName: string): [number, number, number, number] => {
+        const rotation = currentNormalizedPose.jointRotations[jointName];
+        if (!rotation) {
+          return [0, 0, 0, 1];
+        }
+
+        return rotation;
+      };
+
+      const [shoulderLX, shoulderLY] = getJoint('shoulderL');
+      const [shoulderRX, shoulderRY] = getJoint('shoulderR');
+      const [elbowLX] = getJoint('elbowL');
+      const [elbowRX] = getJoint('elbowR');
+      const [hipLX, hipLY] = getJoint('hipL');
+      const [hipRX, hipRY] = getJoint('hipR');
+      const [kneeLX] = getJoint('kneeL');
+      const [kneeRX] = getJoint('kneeR');
+
+      const idle = Math.sin(phase * 0.55);
+
+      joints.pelvis.y += idle * 0.02;
+      joints.head.y += idle * 0.018;
+
+      joints.elbowL.y += -shoulderLX * 0.32 - elbowLX * 0.24;
+      joints.wristL.y += -shoulderLX * 0.52 - elbowLX * 0.4;
+      joints.elbowR.y += -shoulderRX * 0.32 - elbowRX * 0.24;
+      joints.wristR.y += -shoulderRX * 0.52 - elbowRX * 0.4;
+
+      joints.elbowL.x += shoulderLY * 0.22;
+      joints.wristL.x += shoulderLY * 0.36;
+      joints.elbowR.x += shoulderRY * 0.22;
+      joints.wristR.x += shoulderRY * 0.36;
+
+      joints.kneeL.y += -hipLX * 0.2 - kneeLX * 0.18;
+      joints.ankleL.y += -hipLX * 0.15 - kneeLX * 0.2;
+      joints.kneeR.y += -hipRX * 0.2 - kneeRX * 0.18;
+      joints.ankleR.y += -hipRX * 0.15 - kneeRX * 0.2;
+
+      joints.kneeL.x += hipLY * 0.22;
+      joints.ankleL.x += hipLY * 0.3;
+      joints.kneeR.x += hipRY * 0.22;
+      joints.ankleR.x += hipRY * 0.3;
+    },
+  },
+  {
     id: 'jumping-jacks',
     label: 'Jumping Jacks',
     description: 'Full-body cardio with synchronized arm raises and split-step leg movement.',
@@ -811,6 +861,12 @@ function runRenderer(): void {
 
     const result = buildRendererFrame(frameInput);
     currentNormalizedPose = result.pose;
+    selectedRoutineId = 'script-preview';
+    const routineSelect = document.getElementById('animation-routine');
+    if (routineSelect instanceof HTMLSelectElement) {
+      routineSelect.value = selectedRoutineId;
+    }
+    updateRoutineDescription();
     if (warning) {
       setOutput(`${warning}
 
