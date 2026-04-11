@@ -79,6 +79,14 @@ Use coherent timelines:
 ## Natural Motion Constraints (`movementStep`)
 When generating `movementStep` sequences, prioritize physically plausible transitions instead of pose-to-pose teleporting.
 
+Use transition metadata on `movementStep` (all optional) to make non-linear human-like motion explicit while staying backward compatible:
+- `blend`: how this step blends from the previous step.
+  - Allowed enums: `interpolate` (default/current behavior), `hold`, `additive`
+- `easing`: transition curve into this step.
+  - Allowed enums: `linear` (default/current behavior), `easeIn`, `easeOut`, `easeInOut`
+- `transitionMs`: integer milliseconds for blend/easing window into this step.
+  - If omitted, interpolation should follow existing behavior.
+
 - **Limit per-step joint delta magnitude.**
   - Avoid very large angle jumps for the same joint in a single step.
   - Heuristic: if a major joint (hips, knees, ankles, shoulders, elbows, spine) changes by roughly **>30–45°** between adjacent steps, split into additional steps.
@@ -259,6 +267,9 @@ To generate rich, flexible routines:
       "id": "warmup-stance",
       "title": "Warm-up stance",
       "durationMs": 1500,
+      "blend": "interpolate",
+      "easing": "easeInOut",
+      "transitionMs": 300,
       "pose": {
         "jointRotations": {
           "pelvis": { "x": 0, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
@@ -818,6 +829,18 @@ To generate rich, flexible routines:
           "type": "string"
         },
         "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blend": {
+          "type": "string",
+          "enum": ["interpolate", "hold", "additive"]
+        },
+        "easing": {
+          "type": "string",
+          "enum": ["linear", "easeIn", "easeOut", "easeInOut"]
+        },
+        "transitionMs": {
           "type": "integer",
           "minimum": 0
         },
