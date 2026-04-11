@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/schema/routine-1.1.0.schema.json",
-  "title": "Routine Schema v1.1.0",
+  "$id": "https://example.com/schema/routine-1.2.1.schema.json",
+  "title": "Routine Schema v1.2.1",
   "description": "Schema for structured movement/exercise routines with 3D pose support.",
   "type": "object",
   "additionalProperties": false,
@@ -16,7 +16,7 @@
   "properties": {
     "schemaVersion": {
       "type": "string",
-      "const": "1.1.0"
+      "const": "1.2.1"
     },
     "type": {
       "type": "string",
@@ -127,6 +127,96 @@
           "$ref": "#/$defs/euler"
         }
       ]
+    },
+    "styleToken": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Named visual style token resolved by the client theme system."
+    },
+    "timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startMs",
+        "durationMs"
+      ],
+      "properties": {
+        "startMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "positionUnitValue": {
+      "description": "Position value in px or percentage units.",
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^-?\\\\d+(?:\\\\.\\\\d+)?(?:px|%)$"
+        }
+      ]
+    },
+    "anchorKeyword": {
+      "type": "string",
+      "enum": [
+        "top-left",
+        "top-center",
+        "top-right",
+        "center-left",
+        "center",
+        "center-right",
+        "bottom-left",
+        "bottom-center",
+        "bottom-right"
+      ]
+    },
+    "anchor": {
+      "description": "Anchor position as a keyword or coordinate pair.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/anchorKeyword"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "x",
+            "y"
+          ],
+          "properties": {
+            "x": {
+              "$ref": "#/$defs/positionUnitValue"
+            },
+            "y": {
+              "$ref": "#/$defs/positionUnitValue"
+            }
+          }
+        }
+      ]
+    },
+    "animationCue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     },
     "pose": {
       "type": "object",
@@ -256,6 +346,307 @@
         }
       }
     },
+    "dialogueCue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "speaker",
+        "text",
+        "timing"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "dialogueCue"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "speaker": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "audioRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timing": {
+          "$ref": "#/$defs/timing"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "textCue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "text",
+        "placement",
+        "styleToken",
+        "timing"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "textCue"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "placement": {
+          "$ref": "#/$defs/anchor"
+        },
+        "styleToken": {
+          "$ref": "#/$defs/styleToken"
+        },
+        "animationIn": {
+          "$ref": "#/$defs/animationCue"
+        },
+        "animationOut": {
+          "$ref": "#/$defs/animationCue"
+        },
+        "timing": {
+          "$ref": "#/$defs/timing"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "countdownCue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "startValue",
+        "intervalMs",
+        "styleToken",
+        "timing"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "countdownCue"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "startValue": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "intervalMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "label": {
+          "type": "string"
+        },
+        "styleToken": {
+          "$ref": "#/$defs/styleToken"
+        },
+        "timing": {
+          "$ref": "#/$defs/timing"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "overlaySprite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "asset",
+        "anchor",
+        "timing"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "overlaySprite"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "asset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "anchor": {
+          "$ref": "#/$defs/anchor"
+        },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "zIndex": {
+          "type": "integer"
+        },
+        "timing": {
+          "$ref": "#/$defs/timing"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "overlayPolygon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "points",
+        "timing"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "overlayPolygon"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "points": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "x",
+              "y"
+            ],
+            "properties": {
+              "x": {
+                "$ref": "#/$defs/positionUnitValue"
+              },
+              "y": {
+                "$ref": "#/$defs/positionUnitValue"
+              }
+            }
+          }
+        },
+        "fill": {
+          "type": "string"
+        },
+        "stroke": {
+          "type": "string"
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "zIndex": {
+          "type": "integer"
+        },
+        "timing": {
+          "$ref": "#/$defs/timing"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "videoFilterCue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "filterId"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "videoFilterCue"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "filterId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Video filter identifier (e.g. retro-90s-crt)."
+        },
+        "preset": {
+          "type": "string",
+          "enum": [
+            "retro-90s-crt",
+            "vhs-tracking",
+            "arcade-scanlines",
+            "8bit-pixelate",
+            "film-grain",
+            "none"
+          ]
+        },
+        "intensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "blendMode": {
+          "type": "string",
+          "enum": [
+            "replace",
+            "overlay",
+            "screen",
+            "multiply"
+          ],
+          "default": "replace"
+        },
+        "transitionInMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "transitionOutMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timing": {
+          "$ref": "#/$defs/timing"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
     "routineItem": {
       "description": "A single item in the routine flow.",
       "oneOf": [
@@ -267,6 +658,24 @@
         },
         {
           "$ref": "#/$defs/movementStep"
+        },
+        {
+          "$ref": "#/$defs/dialogueCue"
+        },
+        {
+          "$ref": "#/$defs/textCue"
+        },
+        {
+          "$ref": "#/$defs/countdownCue"
+        },
+        {
+          "$ref": "#/$defs/overlaySprite"
+        },
+        {
+          "$ref": "#/$defs/overlayPolygon"
+        },
+        {
+          "$ref": "#/$defs/videoFilterCue"
         }
       ]
     }
