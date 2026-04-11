@@ -117,11 +117,15 @@ function buildAppMarkup(): string {
   return `
     <main class="app-shell">
       <h1>Renderer Input Runner</h1>
-      <p class="app-intro">Provide a JSON payload that matches <code>RendererFrameInput</code> and run normalization.</p>
+      <p class="app-intro">
+        Provide a JSON script and execute it. Routine schema reference:
+        <code>schema/routine-1.1.0.schema.json</code> (file contents currently expect
+        <code>schemaVersion: "1.2.1"</code>).
+      </p>
 
       <section class="input-panel">
         <h2>Script Input</h2>
-        <label for="renderer-input">Renderer input JSON</label>
+        <label for="renderer-input">JSON Script</label>
         <textarea id="renderer-input" rows="7" spellcheck="false"></textarea>
 
         <div class="actions">
@@ -592,12 +596,44 @@ function runRenderer(): void {
 
   try {
     const parsedInput = JSON.parse(inputElement.value);
+    if (
+      typeof parsedInput === 'object' &&
+      parsedInput !== null &&
+      !Array.isArray(parsedInput) &&
+      !('pose' in parsedInput)
+    ) {
+      const requiredFields = ['schemaVersion', 'type', 'id', 'title', 'bodyModel', 'items'];
+      const missingFields = requiredFields.filter((field) => !(field in parsedInput));
+
+      if (missingFields.length > 0) {
+        setOutput(
+          `Invalid JSON script: missing required top-level field(s): ${missingFields.join(', ')}.\n` +
+            'Hint: validate your script against schema/routine-1.1.0.schema.json ' +
+            '(file contents expect schemaVersion "1.2.1").',
+        );
+        return;
+      }
+    }
+
     const result = buildRendererFrame(parsedInput);
     currentNormalizedPose = result.pose;
     setOutput(formatJson(result));
   } catch (error: unknown) {
+    if (error instanceof SyntaxError) {
+      setOutput(
+        `Invalid JSON script: ${error.message}\n` +
+          'Hint: validate your script against schema/routine-1.1.0.schema.json ' +
+          '(file contents expect schemaVersion "1.2.1").',
+      );
+      return;
+    }
+
     const message = error instanceof Error ? error.message : 'Unknown error while running renderer.';
-    setOutput(`Error: ${message}`);
+    setOutput(
+      `Error: ${message}\n` +
+        'Hint: validate your script against schema/routine-1.1.0.schema.json ' +
+        '(file contents expect schemaVersion "1.2.1").',
+    );
   }
 }
 
