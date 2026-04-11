@@ -115,17 +115,20 @@ function formatJson(value: unknown): string {
 
 function buildAppMarkup(): string {
   return `
-    <main>
+    <main class="app-shell">
       <h1>Renderer Input Runner</h1>
-      <p>Provide a JSON payload that matches <code>RendererFrameInput</code> and run normalization.</p>
+      <p class="app-intro">Provide a JSON payload that matches <code>RendererFrameInput</code> and run normalization.</p>
 
-      <label for="renderer-input">Renderer input JSON</label>
-      <textarea id="renderer-input" rows="18" spellcheck="false"></textarea>
+      <section class="input-panel">
+        <h2>Script Input</h2>
+        <label for="renderer-input">Renderer input JSON</label>
+        <textarea id="renderer-input" rows="7" spellcheck="false"></textarea>
 
-      <div class="actions">
-        <button id="run-renderer" type="button">Run renderer</button>
-        <button id="reset-sample" type="button">Reset sample</button>
-      </div>
+        <div class="actions">
+          <button id="run-renderer" type="button">Execute Script</button>
+          <button id="reset-sample" type="button">Reset sample</button>
+        </div>
+      </section>
 
       <section class="animation-controls">
         <h2>Exercise animation routines</h2>
@@ -135,14 +138,16 @@ function buildAppMarkup(): string {
         <p id="animation-routine-description" class="routine-description" aria-live="polite"></p>
       </section>
 
-      <section class="viewer-section">
-        <h2>3D animated renderer preview</h2>
-        <canvas id="renderer-canvas" width="900" height="420" aria-label="3D skeleton renderer preview"></canvas>
-      </section>
+      <section class="workspace">
+        <section class="viewer-section">
+          <h2>Workspace</h2>
+          <canvas id="renderer-canvas" width="900" height="420" aria-label="3D skeleton renderer preview"></canvas>
+        </section>
 
-      <section>
-        <h2>Output</h2>
-        <pre id="renderer-output" aria-live="polite"></pre>
+        <section class="workspace-output">
+          <h3>Output</h3>
+          <pre id="renderer-output" aria-live="polite"></pre>
+        </section>
       </section>
     </main>
   `;
