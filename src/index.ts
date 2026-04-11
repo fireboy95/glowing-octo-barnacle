@@ -756,29 +756,46 @@ function runRenderer(): void {
 }
 
 function resolveRendererFrameInput(parsedInput: unknown): { pose: unknown } {
+  const resolvePoseFromRoutineItem = (item: unknown): unknown | null => {
+    if (typeof item !== 'object' || item === null) {
+      return null;
+    }
+
+    const candidate = item as { kind?: unknown; pose?: unknown; steps?: unknown };
+
+    if (candidate.kind === 'movementStep' && 'pose' in candidate) {
+      return candidate.pose;
+    }
+
+    if (candidate.kind === 'exercise' && Array.isArray(candidate.steps)) {
+      for (const step of candidate.steps) {
+        const nestedPose = resolvePoseFromRoutineItem(step);
+        if (nestedPose !== null) {
+          return nestedPose;
+        }
+      }
+    }
+
+    return null;
+  };
+
   if (typeof parsedInput === 'object' && parsedInput !== null && !Array.isArray(parsedInput)) {
     if ('pose' in parsedInput) {
       return { pose: (parsedInput as { pose: unknown }).pose };
     }
 
     if ('items' in parsedInput && Array.isArray((parsedInput as { items?: unknown }).items)) {
-      const firstMovementStep = (parsedInput as { items: unknown[] }).items.find((item) => {
-        return (
-          typeof item === 'object' &&
-          item !== null &&
-          (item as { kind?: unknown }).kind === 'movementStep' &&
-          'pose' in (item as Record<string, unknown>)
-        );
-      });
-
-      if (firstMovementStep && typeof firstMovementStep === 'object' && firstMovementStep !== null) {
-        return { pose: (firstMovementStep as { pose: unknown }).pose };
+      for (const item of (parsedInput as { items: unknown[] }).items) {
+        const pose = resolvePoseFromRoutineItem(item);
+        if (pose !== null) {
+          return { pose };
+        }
       }
     }
   }
 
   throw new Error(
-    'Input must be either a renderer frame object with `pose` or a routine script containing at least one `movementStep` item with `pose`.',
+    'Input must be either a renderer frame object with `pose` or a routine script containing at least one `movementStep` pose (top-level or inside an `exercise` item).',
   );
 }
 
