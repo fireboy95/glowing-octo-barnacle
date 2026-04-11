@@ -76,6 +76,30 @@ Use coherent timelines:
 - Avoid impossible countdown setup (`intervalMs` too large for duration).
 - Keep simultaneous cues intentional (e.g., text + countdown overlap is OK).
 
+## Natural Motion Constraints (`movementStep`)
+When generating `movementStep` sequences, prioritize physically plausible transitions instead of pose-to-pose teleporting.
+
+- **Limit per-step joint delta magnitude.**
+  - Avoid very large angle jumps for the same joint in a single step.
+  - Heuristic: if a major joint (hips, knees, ankles, shoulders, elbows, spine) changes by roughly **>30–45°** between adjacent steps, split into additional steps.
+- **Require minimum step durations for large pose transitions.**
+  - Heuristic: for large whole-body or lower-body transitions, use at least **300–600ms** for the transition window.
+  - Avoid compressing major posture changes into ultra-short (<200ms) single steps.
+- **Require intermediate transition frames for explosive moves** (for example: burpee, jump squat, skater).
+  - Insert explicit transition frames showing loading, takeoff, contact, and stabilization as applicable.
+  - Heuristic: for large lower-body angle changes (hip/knee/ankle), insert **1–2 transition `movementStep` items**, each around **200–400ms**.
+- **Encourage anticipation/contact/recovery micro-steps.**
+  - Add brief anticipation (pre-load), contact (landing/plant), and recovery (re-balance) micro-steps where motion would otherwise look abrupt.
+  - Typical micro-step range: about **120–300ms** depending on movement speed.
+
+Practical pattern for explosive actions:
+1. Anticipation/pre-load step (short, controlled).
+2. Main propulsion or direction-change step.
+3. Contact/landing step.
+4. Recovery/stabilization step.
+
+Keep these constraints consistent with schema validity requirements (integers in ms, valid joint rotation encoding, and no extra properties).
+
 ## Camera Script Syntax (`cameraCue`)
 A `cameraCue` item controls framing over a timed interval:
 
