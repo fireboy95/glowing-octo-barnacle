@@ -220,6 +220,14 @@ const BODY_RADIUS_BY_JOINT: Record<string, number> = {
 };
 
 let currentNormalizedPose = buildRendererFrame(SAMPLE_INPUT).pose;
+type NormalizedPose = ReturnType<typeof buildRendererFrame>['pose'];
+interface ScriptPreviewFrame {
+  pose: NormalizedPose;
+  durationMs: number;
+}
+
+let scriptPreviewFrames: ScriptPreviewFrame[] = [{ pose: currentNormalizedPose, durationMs: 1500 }];
+let currentAnimationSeconds = 0;
 let animationHandle: number | null = null;
 let animationStart = 0;
 let selectedRoutineId = 'jumping-jacks';
@@ -292,11 +300,35 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
   {
     id: 'script-preview',
     label: 'Script Preview',
-    description: 'Holds the pose from your executed JSON script with a subtle idle sway.',
+    description:
+      'Plays movementStep poses from your executed JSON script; non-movement items are ignored for animation.',
     speedMultiplier: 0.45,
     transform: (joints, phase) => {
+      const getActiveScriptPreviewPose = (): NormalizedPose => {
+        if (scriptPreviewFrames.length === 0) {
+          return currentNormalizedPose;
+        }
+
+        if (scriptPreviewFrames.length === 1) {
+          return scriptPreviewFrames[0].pose;
+        }
+
+        const totalDurationMs = scriptPreviewFrames.reduce((total, frame) => total + frame.durationMs, 0);
+        const loopMs = (currentAnimationSeconds * 1000) % Math.max(1, totalDurationMs);
+        let cursorMs = 0;
+        for (const frame of scriptPreviewFrames) {
+          cursorMs += frame.durationMs;
+          if (loopMs < cursorMs) {
+            return frame.pose;
+          }
+        }
+
+        return scriptPreviewFrames[scriptPreviewFrames.length - 1].pose;
+      };
+
+      const activePose = getActiveScriptPreviewPose();
       const getJoint = (jointName: string): [number, number, number, number] => {
-        const rotation = currentNormalizedPose.jointRotations[jointName];
+        const rotation = activePose.jointRotations[jointName];
         if (!rotation) {
           return [0, 0, 0, 1];
         }
@@ -492,6 +524,7 @@ function projectThickness(thickness: number, depth: number): number {
 }
 
 function buildAnimatedSkeleton(timeSeconds: number): Record<string, Vec3> {
+  currentAnimationSeconds = timeSeconds;
   const routine = getSelectedRoutine();
   const phase = timeSeconds * 2.2 * routine.speedMultiplier;
   const cycle = Math.sin(phase);
@@ -861,6 +894,7 @@ function runRenderer(): void {
 
     const result = buildRendererFrame(frameInput);
     currentNormalizedPose = result.pose;
+    scriptPreviewFrames = resolveScriptPreviewFrames(parsedInput, currentNormalizedPose);
     selectedRoutineId = 'script-preview';
     const routineSelect = document.getElementById('animation-routine');
     if (routineSelect instanceof HTMLSelectElement) {
@@ -935,6 +969,56 @@ function resolveRendererFrameInput(parsedInput: unknown): { pose: unknown } {
   throw new Error(
     'Input must be either a renderer frame object with `pose` or a routine script containing at least one `movementStep` pose (top-level or inside an `exercise` item).',
   );
+}
+
+function resolveScriptPreviewFrames(parsedInput: unknown, fallbackPose: NormalizedPose): ScriptPreviewFrame[] {
+  const frames: ScriptPreviewFrame[] = [];
+  const addFrame = (pose: unknown, durationMs?: unknown): void => {
+    const normalizedDurationMs =
+      typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs > 0
+        ? Math.round(durationMs)
+        : 1500;
+    try {
+      const normalized = buildRendererFrame({ pose }).pose;
+      frames.push({ pose: normalized, durationMs: normalizedDurationMs });
+    } catch {
+      // Ignore malformed movementStep poses; runRenderer still validates the primary pose input.
+    }
+  };
+
+  const visitItem = (item: unknown): void => {
+    if (typeof item !== 'object' || item === null) {
+      return;
+    }
+
+    const candidate = item as { kind?: unknown; pose?: unknown; durationMs?: unknown; steps?: unknown };
+    if (candidate.kind === 'movementStep' && 'pose' in candidate) {
+      addFrame(candidate.pose, candidate.durationMs);
+      return;
+    }
+
+    if (candidate.kind === 'exercise' && Array.isArray(candidate.steps)) {
+      for (const step of candidate.steps) {
+        visitItem(step);
+      }
+    }
+  };
+
+  if (typeof parsedInput === 'object' && parsedInput !== null && !Array.isArray(parsedInput)) {
+    if ('items' in parsedInput && Array.isArray((parsedInput as { items?: unknown }).items)) {
+      for (const item of (parsedInput as { items: unknown[] }).items) {
+        visitItem(item);
+      }
+    } else if ('pose' in parsedInput) {
+      addFrame((parsedInput as { pose: unknown }).pose, 1500);
+    }
+  }
+
+  if (frames.length === 0) {
+    frames.push({ pose: fallbackPose, durationMs: 1500 });
+  }
+
+  return frames;
 }
 
 function mountApp(): void {
