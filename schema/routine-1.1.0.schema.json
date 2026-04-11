@@ -163,6 +163,189 @@
         }
       ]
     },
+    "vector3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      }
+    },
+    "cameraEasing": {
+      "type": "string",
+      "enum": [
+        "linear",
+        "easeIn",
+        "easeOut",
+        "easeInOut"
+      ]
+    },
+    "cameraDirectiveLookAt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "target"
+      ],
+      "properties": {
+        "type": {
+          "const": "lookAt"
+        },
+        "target": {
+          "$ref": "#/$defs/vector3"
+        },
+        "easing": {
+          "$ref": "#/$defs/cameraEasing"
+        }
+      }
+    },
+    "cameraDirectivePosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "position"
+      ],
+      "properties": {
+        "type": {
+          "const": "position"
+        },
+        "position": {
+          "$ref": "#/$defs/vector3"
+        },
+        "easing": {
+          "$ref": "#/$defs/cameraEasing"
+        }
+      }
+    },
+    "cameraDirectiveYawPitchRoll": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "yawRad",
+        "pitchRad",
+        "rollRad"
+      ],
+      "properties": {
+        "type": {
+          "const": "yaw/pitch/roll"
+        },
+        "yawRad": {
+          "type": "number"
+        },
+        "pitchRad": {
+          "type": "number"
+        },
+        "rollRad": {
+          "type": "number"
+        },
+        "easing": {
+          "$ref": "#/$defs/cameraEasing"
+        }
+      }
+    },
+    "cameraDirectiveOrbit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "angleRad"
+      ],
+      "properties": {
+        "type": {
+          "const": "orbit"
+        },
+        "angleRad": {
+          "type": "number"
+        },
+        "radius": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number"
+        },
+        "target": {
+          "$ref": "#/$defs/vector3"
+        },
+        "easing": {
+          "$ref": "#/$defs/cameraEasing"
+        }
+      }
+    },
+    "cameraDirectiveDolly": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "amount"
+      ],
+      "properties": {
+        "type": {
+          "const": "dolly"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "easing": {
+          "$ref": "#/$defs/cameraEasing"
+        }
+      }
+    },
+    "cameraDirectivePanTo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "target"
+      ],
+      "properties": {
+        "type": {
+          "const": "panTo"
+        },
+        "target": {
+          "$ref": "#/$defs/vector3"
+        },
+        "easing": {
+          "$ref": "#/$defs/cameraEasing"
+        }
+      }
+    },
+    "cameraDirective": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/cameraDirectiveLookAt"
+        },
+        {
+          "$ref": "#/$defs/cameraDirectivePosition"
+        },
+        {
+          "$ref": "#/$defs/cameraDirectiveYawPitchRoll"
+        },
+        {
+          "$ref": "#/$defs/cameraDirectiveOrbit"
+        },
+        {
+          "$ref": "#/$defs/cameraDirectiveDolly"
+        },
+        {
+          "$ref": "#/$defs/cameraDirectivePanTo"
+        }
+      ]
+    },
     "anchorKeyword": {
       "type": "string",
       "enum": [
@@ -647,6 +830,40 @@
         }
       }
     },
+    "cameraCue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "timing",
+        "directives"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "cameraCue"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timing": {
+          "$ref": "#/$defs/timing"
+        },
+        "directives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/cameraDirective"
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
     "routineItem": {
       "description": "A single item in the routine flow.",
       "oneOf": [
@@ -676,6 +893,9 @@
         },
         {
           "$ref": "#/$defs/videoFilterCue"
+        },
+        {
+          "$ref": "#/$defs/cameraCue"
         }
       ]
     }

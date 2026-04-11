@@ -4,6 +4,7 @@ import {
   interpolateNormalizedTimelinePose,
 } from '../timeline';
 import type { NormalizePose3DOptions, Pose3DInput } from '../renderer/normalizePose3d';
+import type { CameraDirective } from './CameraController';
 
 export interface PlaybackTimeWindow {
   timeMs: number;
@@ -11,8 +12,7 @@ export interface PlaybackTimeWindow {
 }
 
 export interface CameraCue extends PlaybackTimeWindow {
-  type: 'pan' | 'angle' | 'rotation' | 'movement';
-  payload?: Record<string, unknown>;
+  directives: CameraDirective[];
 }
 
 export interface TextCue extends PlaybackTimeWindow {
@@ -30,6 +30,7 @@ export type PlaybackCue = CameraCue | TextCue | OverlayCue;
 export interface PlaybackFrame {
   pose: TimelineKeyframe['pose'] | null;
   cameraState: CameraCue | null;
+  nextCameraState: CameraCue | null;
   activeCues: PlaybackCue[];
 }
 
@@ -105,19 +106,32 @@ export function resolvePlaybackFrame(state: TimelinePlaybackState): PlaybackFram
   const currentTimeMs = state.currentTimeMs;
   const pose = resolvePlaybackPose(state);
   const cameraState = resolveActiveCameraCue(state.cameraCues, currentTimeMs);
+  const nextCameraState = resolveNextCameraCue(state.cameraCues, currentTimeMs);
   const activeCues = resolveActiveCues(state, currentTimeMs);
 
   return {
     pose,
     cameraState,
+    nextCameraState,
     activeCues,
   };
 }
 
-function resolveActiveCameraCue(cameraCues: CameraCue[], currentTimeMs: number): CameraCue | null {
+export function resolveActiveCameraCue(cameraCues: CameraCue[], currentTimeMs: number): CameraCue | null {
   for (let index = cameraCues.length - 1; index >= 0; index -= 1) {
     const cue = cameraCues[index];
-    if (isCueActive(cue, currentTimeMs)) {
+    if (isCameraCueActive(cue, currentTimeMs)) {
+      return cue;
+    }
+  }
+
+  return null;
+}
+
+export function resolveNextCameraCue(cameraCues: CameraCue[], currentTimeMs: number): CameraCue | null {
+  for (let index = 0; index < cameraCues.length; index += 1) {
+    const cue = cameraCues[index];
+    if (cue.timeMs > currentTimeMs) {
       return cue;
     }
   }
@@ -151,6 +165,18 @@ function resolveActiveCues(state: TimelinePlaybackState, currentTimeMs: number):
 function isCueActive(cue: PlaybackTimeWindow, currentTimeMs: number): boolean {
   const end = cue.endTimeMs ?? cue.timeMs;
   return currentTimeMs >= cue.timeMs && currentTimeMs <= end;
+}
+
+function isCameraCueActive(cue: CameraCue, currentTimeMs: number): boolean {
+  if (currentTimeMs < cue.timeMs) {
+    return false;
+  }
+
+  if (cue.endTimeMs === undefined) {
+    return true;
+  }
+
+  return currentTimeMs <= cue.endTimeMs;
 }
 
 function sortTrackEntries<T extends PlaybackTimeWindow>(entries: T[]): T[] {

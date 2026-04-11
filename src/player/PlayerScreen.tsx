@@ -1,7 +1,7 @@
 import React from 'react';
 import { getBodyModel, type BodyModelId } from '../bodyModels/human-3d-v1';
 import { CameraController, type CameraPreset } from '../renderer3d/CameraController';
-import { type TimelinePlaybackState, resolvePlaybackPose } from '../renderer3d/PlaybackBridge';
+import { type TimelinePlaybackState, resolvePlaybackFrame } from '../renderer3d/PlaybackBridge';
 import { SkeletonScene, type Vector3 } from '../renderer3d/SkeletonScene';
 
 export interface PlayerScreenProps {
@@ -23,15 +23,23 @@ export function PlayerScreen({
   renderCueOverlay,
   renderTimerOverlay,
 }: PlayerScreenProps): React.ReactElement {
-  const activePose = React.useMemo(() => resolvePlaybackPose(timeline), [timeline]);
+  const playbackFrame = React.useMemo(() => resolvePlaybackFrame(timeline), [timeline]);
   const is3dBodyModel = bodyModel === 'human-3d-v1';
 
   return (
-    <section style={{ position: 'relative' }} data-active-pose={activePose ? 'ready' : 'empty'}>
+    <section
+      style={{ position: 'relative' }}
+      data-active-pose={playbackFrame.pose ? 'ready' : 'empty'}
+    >
       <div data-layer="scene">
         {is3dBodyModel ? (
           <>
-            <CameraController preset={cameraPreset} />
+            <CameraController
+              preset={cameraPreset}
+              playbackTimeMs={timeline.currentTimeMs}
+              cameraCue={playbackFrame.cameraState}
+              nextCameraCue={playbackFrame.nextCameraState}
+            />
             <SkeletonScene
               jointPositions={jointPositions}
               jointParentByName={getBodyModel(bodyModel).jointParentByName}
