@@ -14,6 +14,121 @@ const SAMPLE_INPUT = {
   },
 };
 
+const CUSTOM_JSON_SCRIPT_AGENT_PROMPT = `# Custom JSON Script Agent Prompt
+
+## Purpose and constraints
+You are generating a JSON routine script that must validate against \`schema/routine-1.1.0.schema.json\` (schemaVersion is \`1.2.1\`).
+Output must be one JSON object only (no markdown, no comments, no explanation text).
+Do not include fields not defined by the schema.
+Use realistic timing values in milliseconds.
+
+Use this output instruction exactly:
+"Return only valid JSON. Do not wrap in markdown. Do not include commentary."
+
+This prompt is intended to be pasted into ChatGPT or another LLM to generate schema-valid JSON scripts.
+
+## Required top-level schema fields
+- \`schemaVersion\`: must be \`"1.2.1"\`
+- \`type\`: must be \`"routine"\`
+- \`id\`: non-empty string
+- \`title\`: non-empty string
+- \`bodyModel\`: \`"human-2d-v1"\` or \`"human-3d-v1"\`
+- \`items\`: array with at least 1 item
+
+## Supported joint rotation formats
+Each entry in \`pose.jointRotations\` supports one of:
+
+1) Euler object
+\`\`\`json
+{ "x": 10, "y": 0, "z": -5, "order": "XYZ", "unit": "deg" }
+\`\`\`
+- \`x\`, \`y\`, \`z\` are numbers and required.
+- \`order\` optional, one of XYZ/XZY/YXZ/YZX/ZXY/ZYX.
+- \`unit\` optional, \`"rad"\` or \`"deg"\`.
+
+2) Quaternion array
+\`\`\`json
+[0, 0, 0, 1]
+\`\`\`
+- Exactly four numbers: \`[x, y, z, w]\`.
+
+## Timing structure
+Timed cue items use:
+\`\`\`json
+"timing": { "startMs": 0, "durationMs": 1500 }
+\`\`\`
+- \`startMs\`: integer >= 0
+- \`durationMs\`: integer >= 0
+
+## Common mistakes to avoid
+- Wrong \`schemaVersion\` (must be \`"1.2.1"\`).
+- Missing required top-level fields.
+- Returning an array instead of a single object.
+- Using non-integer timing values.
+- Adding unknown properties (schema uses \`additionalProperties: false\` in many objects).
+- Invalid quaternion length (must be 4).
+- Invalid Euler \`order\` or \`unit\`.
+- Wrapping JSON in markdown fences.
+
+## Complete valid example script
+{
+  "schemaVersion": "1.2.1",
+  "type": "routine",
+  "id": "demo-full-body-001",
+  "title": "Demo Full Body Sequence",
+  "description": "Simple routine demonstrating movement, dialogue, text, and countdown cues.",
+  "bodyModel": "human-3d-v1",
+  "renderHints": {
+    "dimension": "3d"
+  },
+  "items": [
+    {
+      "kind": "movementStep",
+      "id": "step-neutral",
+      "title": "Neutral stance",
+      "durationMs": 1200,
+      "pose": {
+        "jointRotations": {
+          "pelvis": { "x": 0, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderL": { "x": 12, "y": -8, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderR": { "x": 12, "y": 8, "z": 0, "unit": "deg", "order": "XYZ" },
+          "hipL": [0, 0, 0, 1],
+          "hipR": [0, 0, 0, 1]
+        }
+      }
+    },
+    {
+      "kind": "dialogueCue",
+      "id": "coach-1",
+      "speaker": "Coach",
+      "text": "Brace your core and keep breathing.",
+      "timing": { "startMs": 0, "durationMs": 1800 }
+    },
+    {
+      "kind": "textCue",
+      "id": "banner-1",
+      "text": "Round 1",
+      "placement": { "x": "50%", "y": "12%" },
+      "styleToken": "headline",
+      "timing": { "startMs": 0, "durationMs": 1400 }
+    },
+    {
+      "kind": "countdownCue",
+      "id": "count-in",
+      "startValue": 3,
+      "intervalMs": 1000,
+      "styleToken": "countdown",
+      "timing": { "startMs": 0, "durationMs": 3000 }
+    },
+    {
+      "kind": "rest",
+      "id": "rest-short",
+      "title": "Reset",
+      "durationMs": 2000
+    }
+  ]
+}`;
+
 interface Vec3 {
   x: number;
   y: number;
@@ -131,6 +246,8 @@ function buildAppMarkup(): string {
         <div class="actions">
           <button id="run-renderer" type="button">Execute Script</button>
           <button id="reset-sample" type="button">Reset sample</button>
+          <button id="copy-agent-docs" type="button">Copy Agent Prompt</button>
+          <span id="copy-status" role="status" aria-live="polite"></span>
         </div>
       </section>
 
@@ -649,6 +766,8 @@ function mountApp(): void {
   const inputElement = document.getElementById('renderer-input');
   const runButton = document.getElementById('run-renderer');
   const resetButton = document.getElementById('reset-sample');
+  const copyAgentDocsButton = document.getElementById('copy-agent-docs');
+  const copyStatus = document.getElementById('copy-status');
   const routineSelect = document.getElementById('animation-routine');
 
   if (!(inputElement instanceof HTMLTextAreaElement)) {
@@ -657,6 +776,12 @@ function mountApp(): void {
 
   if (!(runButton instanceof HTMLButtonElement) || !(resetButton instanceof HTMLButtonElement)) {
     throw new Error('Expected action buttons were not found.');
+  }
+  if (!(copyAgentDocsButton instanceof HTMLButtonElement)) {
+    throw new Error('Copy button #copy-agent-docs was not found.');
+  }
+  if (!(copyStatus instanceof HTMLSpanElement)) {
+    throw new Error('Copy status #copy-status was not found.');
   }
   if (!(routineSelect instanceof HTMLSelectElement)) {
     throw new Error('Animation routine selector #animation-routine was not found.');
@@ -676,6 +801,16 @@ function mountApp(): void {
   resetButton.addEventListener('click', () => {
     inputElement.value = formatJson(SAMPLE_INPUT);
     runRenderer();
+  });
+  copyAgentDocsButton.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(CUSTOM_JSON_SCRIPT_AGENT_PROMPT);
+      copyStatus.textContent =
+        'Copied. Paste into ChatGPT or another LLM to generate schema-valid JSON scripts.';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Clipboard access failed.';
+      copyStatus.textContent = `Copy failed: ${message}`;
+    }
   });
   routineSelect.addEventListener('change', () => {
     selectedRoutineId = routineSelect.value;
