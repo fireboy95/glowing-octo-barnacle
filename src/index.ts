@@ -704,6 +704,82 @@ function startRendererAnimation(): void {
   animationHandle = requestAnimationFrame(draw);
 }
 
+function extractFirstJsonObject(input: string): { value: string; trailing: string } | null {
+  const source = input.trim();
+
+  if (!source.startsWith('{')) {
+    return null;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (character === '\\') {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (character === '{') {
+      depth += 1;
+      continue;
+    }
+
+    if (character === '}') {
+      depth -= 1;
+
+      if (depth === 0) {
+        return {
+          value: source.slice(0, index + 1),
+          trailing: source.slice(index + 1).trim(),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseRendererInput(input: string): { parsedInput: unknown; warning?: string } {
+  try {
+    return { parsedInput: JSON.parse(input) };
+  } catch (error: unknown) {
+    if (!(error instanceof SyntaxError)) {
+      throw error;
+    }
+
+    const extracted = extractFirstJsonObject(input);
+    if (!extracted || extracted.trailing.length === 0) {
+      throw error;
+    }
+
+    return {
+      parsedInput: JSON.parse(extracted.value),
+      warning:
+        'Detected multiple JSON objects in the script input. Only the first object was executed. ' +
+        'Remove extra objects and run again to avoid ambiguity.',
+    };
+  }
+}
+
 function runRenderer(): void {
   const inputElement = document.getElementById('renderer-input');
 
@@ -712,7 +788,7 @@ function runRenderer(): void {
   }
 
   try {
-    const parsedInput = JSON.parse(inputElement.value);
+    const { parsedInput, warning } = parseRendererInput(inputElement.value);
     const frameInput = resolveRendererFrameInput(parsedInput);
     if (
       typeof parsedInput === 'object' &&
@@ -735,6 +811,12 @@ function runRenderer(): void {
 
     const result = buildRendererFrame(frameInput);
     currentNormalizedPose = result.pose;
+    if (warning) {
+      setOutput(`${warning}
+
+${formatJson(result)}`);
+      return;
+    }
     setOutput(formatJson(result));
   } catch (error: unknown) {
     if (error instanceof SyntaxError) {
