@@ -251,106 +251,272 @@ To generate rich, flexible routines:
 6. Drive framing with `cameraCue.directives` (`lookAt`, `position`, `yaw/pitch/roll`, `orbit`, `dolly`, `panTo`, `fov`).
 7. Keep IDs stable and meaningful for downstream editing.
 
-## Complete Valid Example Script
+## Canonical Natural Movement Example (Default Style Target)
+Use the following script as the **default style target** whenever the request asks for natural movement generation. It demonstrates smooth warmup + HIIT pacing with explicit `cameraCue` usage, transition frames between major poses, conservative per-step joint changes, and realistic high-impact timing.
+
 ```json
 {
   "schemaVersion": "1.2.1",
   "type": "routine",
-  "id": "arbitrary-video-demo-001",
-  "title": "HIIT Demo With Coaching, Overlays, and Camera Moves",
-  "description": "Comprehensive routine demonstrating multiple supported item kinds.",
+  "id": "canonical-natural-warmup-hiit-001",
+  "title": "Canonical Natural Movement: Warmup + HIIT",
+  "description": "Reference script for natural motion generation with camera directives and realistic transition timing.",
   "bodyModel": "human-3d-v1",
   "renderHints": { "dimension": "3d" },
   "items": [
     {
+      "kind": "textCue",
+      "id": "label-session-start",
+      "text": "Warmup Flow → HIIT Block",
+      "placement": { "x": "50%", "y": "10%" },
+      "styleToken": "headline",
+      "timing": { "startMs": 0, "durationMs": 3200 }
+    },
+    {
+      "kind": "dialogueCue",
+      "id": "coach-intro-natural",
+      "speaker": "Coach",
+      "text": "Start smooth. Build speed only after control is locked in.",
+      "timing": { "startMs": 0, "durationMs": 3600 }
+    },
+    {
+      "kind": "cameraCue",
+      "id": "cam-warmup-open",
+      "timing": { "startMs": 0, "durationMs": 5200 },
+      "directives": [
+        { "type": "position", "position": { "x": 0, "y": 1.45, "z": 3.7 }, "easing": "easeOut" },
+        { "type": "lookAt", "target": { "x": 0, "y": 1.0, "z": 0 }, "easing": "easeInOut" },
+        { "type": "fov", "fovDeg": 44, "easing": "linear" }
+      ]
+    },
+
+    {
       "kind": "movementStep",
-      "id": "warmup-stance",
-      "title": "Warm-up stance",
-      "durationMs": 1500,
+      "id": "wu-stance-neutral",
+      "title": "Warmup neutral stance",
+      "durationMs": 900,
       "blend": "interpolate",
       "easing": "easeInOut",
-      "transitionMs": 300,
+      "transitionMs": 250,
       "pose": {
         "jointRotations": {
           "pelvis": { "x": 0, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "spine": { "x": 4, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "hipL": { "x": 8, "y": 0, "z": 2, "unit": "deg", "order": "XYZ" },
+          "hipR": { "x": 8, "y": 0, "z": -2, "unit": "deg", "order": "XYZ" },
+          "kneeL": { "x": 12, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "kneeR": { "x": 12, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleL": { "x": 4, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleR": { "x": 4, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
           "shoulderL": { "x": 10, "y": -8, "z": 0, "unit": "deg", "order": "XYZ" },
-          "shoulderR": { "x": 10, "y": 8, "z": 0, "unit": "deg", "order": "XYZ" },
-          "hipL": [0, 0, 0, 1],
-          "hipR": [0, 0, 0, 1]
+          "shoulderR": { "x": 10, "y": 8, "z": 0, "unit": "deg", "order": "XYZ" }
         }
       }
     },
     {
-      "kind": "dialogueCue",
-      "id": "coach-intro",
-      "speaker": "Coach",
-      "text": "Start light, then build intensity.",
-      "timing": { "startMs": 0, "durationMs": 2200 }
+      "kind": "movementStep",
+      "id": "wu-hinge-transition",
+      "title": "Warmup hinge transition",
+      "durationMs": 650,
+      "blend": "interpolate",
+      "easing": "easeIn",
+      "transitionMs": 320,
+      "pose": {
+        "jointRotations": {
+          "pelvis": { "x": 8, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "spine": { "x": 9, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "hipL": { "x": 20, "y": 0, "z": 2, "unit": "deg", "order": "XYZ" },
+          "hipR": { "x": 20, "y": 0, "z": -2, "unit": "deg", "order": "XYZ" },
+          "kneeL": { "x": 22, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "kneeR": { "x": 22, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleL": { "x": 8, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleR": { "x": 8, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderL": { "x": 20, "y": -8, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderR": { "x": 20, "y": 8, "z": 0, "unit": "deg", "order": "XYZ" }
+        }
+      }
     },
     {
-      "kind": "textCue",
-      "id": "round-label",
-      "text": "Round 1 • 30s On",
-      "placement": { "x": "50%", "y": "10%" },
-      "styleToken": "headline",
-      "timing": { "startMs": 0, "durationMs": 2500 }
+      "kind": "movementStep",
+      "id": "wu-squat-base",
+      "title": "Warmup squat base",
+      "durationMs": 800,
+      "blend": "interpolate",
+      "easing": "easeOut",
+      "transitionMs": 360,
+      "pose": {
+        "jointRotations": {
+          "pelvis": { "x": 14, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "spine": { "x": 11, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "hipL": { "x": 30, "y": 0, "z": 4, "unit": "deg", "order": "XYZ" },
+          "hipR": { "x": 30, "y": 0, "z": -4, "unit": "deg", "order": "XYZ" },
+          "kneeL": { "x": 35, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "kneeR": { "x": 35, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleL": { "x": 12, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleR": { "x": 12, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderL": { "x": 30, "y": -8, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderR": { "x": 30, "y": 8, "z": 0, "unit": "deg", "order": "XYZ" }
+        }
+      }
     },
+
     {
       "kind": "countdownCue",
-      "id": "count-in",
+      "id": "countdown-hiit-start",
       "startValue": 3,
       "intervalMs": 1000,
       "styleToken": "countdown",
-      "timing": { "startMs": 0, "durationMs": 3000 }
-    },
-    {
-      "kind": "overlaySprite",
-      "id": "badge",
-      "asset": "assets/ui/fire-badge.png",
-      "anchor": { "x": "88%", "y": "14%" },
-      "scale": 1,
-      "opacity": 0.9,
-      "zIndex": 5,
-      "timing": { "startMs": 1200, "durationMs": 2800 }
-    },
-    {
-      "kind": "overlayPolygon",
-      "id": "lower-third-bg",
-      "points": [
-        { "x": "5%", "y": "82%" },
-        { "x": "60%", "y": "82%" },
-        { "x": "58%", "y": "96%" }
-      ],
-      "fill": "#111827",
-      "opacity": 0.65,
-      "zIndex": 2,
-      "timing": { "startMs": 0, "durationMs": 4000 }
-    },
-    {
-      "kind": "videoFilterCue",
-      "id": "style-pass",
-      "filterId": "warm-contrast",
-      "preset": "film-grain",
-      "intensity": 0.4,
-      "blendMode": "overlay",
-      "transitionInMs": 400,
-      "transitionOutMs": 400,
-      "timing": { "startMs": 500, "durationMs": 4500 }
+      "timing": { "startMs": 2600, "durationMs": 3000 }
     },
     {
       "kind": "cameraCue",
-      "id": "camera-open",
-      "timing": { "startMs": 0, "durationMs": 5000 },
+      "id": "cam-hiit-prep",
+      "timing": { "startMs": 5200, "durationMs": 3600 },
       "directives": [
-        { "type": "position", "position": { "x": 0, "y": 1.4, "z": 3.5 }, "easing": "easeOut" },
-        { "type": "lookAt", "target": { "x": 0, "y": 1.0, "z": 0 }, "easing": "easeInOut" }
+        { "type": "position", "position": { "x": 0.15, "y": 1.35, "z": 3.1 }, "easing": "easeInOut" },
+        { "type": "lookAt", "target": { "x": 0, "y": 0.95, "z": 0 }, "easing": "easeOut" },
+        { "type": "dolly", "distance": -0.35, "easing": "easeIn" }
+      ]
+    },
+
+    {
+      "kind": "movementStep",
+      "id": "hiit-preload",
+      "title": "Pre-load before jump squat",
+      "durationMs": 280,
+      "blend": "interpolate",
+      "easing": "easeIn",
+      "transitionMs": 220,
+      "pose": {
+        "jointRotations": {
+          "pelvis": { "x": 18, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "spine": { "x": 12, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "hipL": { "x": 38, "y": 0, "z": 4, "unit": "deg", "order": "XYZ" },
+          "hipR": { "x": 38, "y": 0, "z": -4, "unit": "deg", "order": "XYZ" },
+          "kneeL": { "x": 48, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "kneeR": { "x": 48, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleL": { "x": 15, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleR": { "x": 15, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderL": { "x": 35, "y": -7, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderR": { "x": 35, "y": 7, "z": 0, "unit": "deg", "order": "XYZ" }
+        }
+      }
+    },
+    {
+      "kind": "movementStep",
+      "id": "hiit-takeoff-transition",
+      "title": "Takeoff transition",
+      "durationMs": 240,
+      "blend": "interpolate",
+      "easing": "easeOut",
+      "transitionMs": 200,
+      "pose": {
+        "jointRotations": {
+          "pelvis": { "x": 12, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "spine": { "x": 9, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "hipL": { "x": 28, "y": 0, "z": 3, "unit": "deg", "order": "XYZ" },
+          "hipR": { "x": 28, "y": 0, "z": -3, "unit": "deg", "order": "XYZ" },
+          "kneeL": { "x": 34, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "kneeR": { "x": 34, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleL": { "x": 10, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleR": { "x": 10, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderL": { "x": 45, "y": -6, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderR": { "x": 45, "y": 6, "z": 0, "unit": "deg", "order": "XYZ" }
+        }
+      }
+    },
+    {
+      "kind": "movementStep",
+      "id": "hiit-flight",
+      "title": "Jump phase",
+      "durationMs": 220,
+      "blend": "interpolate",
+      "easing": "linear",
+      "transitionMs": 180,
+      "pose": {
+        "jointRotations": {
+          "pelvis": { "x": 8, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "spine": { "x": 6, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "hipL": { "x": 18, "y": 0, "z": 2, "unit": "deg", "order": "XYZ" },
+          "hipR": { "x": 18, "y": 0, "z": -2, "unit": "deg", "order": "XYZ" },
+          "kneeL": { "x": 24, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "kneeR": { "x": 24, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleL": { "x": 8, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleR": { "x": 8, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderL": { "x": 52, "y": -6, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderR": { "x": 52, "y": 6, "z": 0, "unit": "deg", "order": "XYZ" }
+        }
+      }
+    },
+    {
+      "kind": "movementStep",
+      "id": "hiit-landing-contact",
+      "title": "Landing contact",
+      "durationMs": 260,
+      "blend": "interpolate",
+      "easing": "easeIn",
+      "transitionMs": 200,
+      "pose": {
+        "jointRotations": {
+          "pelvis": { "x": 15, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "spine": { "x": 10, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "hipL": { "x": 32, "y": 0, "z": 3, "unit": "deg", "order": "XYZ" },
+          "hipR": { "x": 32, "y": 0, "z": -3, "unit": "deg", "order": "XYZ" },
+          "kneeL": { "x": 42, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "kneeR": { "x": 42, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleL": { "x": 14, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleR": { "x": 14, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderL": { "x": 40, "y": -7, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderR": { "x": 40, "y": 7, "z": 0, "unit": "deg", "order": "XYZ" }
+        }
+      }
+    },
+    {
+      "kind": "movementStep",
+      "id": "hiit-recovery-stance",
+      "title": "Recovery and reset",
+      "durationMs": 340,
+      "blend": "interpolate",
+      "easing": "easeOut",
+      "transitionMs": 240,
+      "pose": {
+        "jointRotations": {
+          "pelvis": { "x": 8, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "spine": { "x": 6, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "hipL": { "x": 20, "y": 0, "z": 2, "unit": "deg", "order": "XYZ" },
+          "hipR": { "x": 20, "y": 0, "z": -2, "unit": "deg", "order": "XYZ" },
+          "kneeL": { "x": 24, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "kneeR": { "x": 24, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleL": { "x": 9, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "ankleR": { "x": 9, "y": 0, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderL": { "x": 26, "y": -8, "z": 0, "unit": "deg", "order": "XYZ" },
+          "shoulderR": { "x": 26, "y": 8, "z": 0, "unit": "deg", "order": "XYZ" }
+        }
+      }
+    },
+
+    {
+      "kind": "cameraCue",
+      "id": "cam-hiit-close",
+      "timing": { "startMs": 8800, "durationMs": 2600 },
+      "directives": [
+        { "type": "orbit", "center": { "x": 0, "y": 1.0, "z": 0 }, "radius": 3.0, "azimuthRad": 0.4, "elevationRad": 0.15, "easing": "easeInOut" },
+        { "type": "panTo", "target": { "x": 0.1, "y": 1.05, "z": 0 }, "easing": "easeOut" }
       ]
     },
     {
+      "kind": "textCue",
+      "id": "label-soft-landing",
+      "text": "Soft landing • absorb, then reset",
+      "placement": { "x": "50%", "y": "88%" },
+      "styleToken": "caption",
+      "timing": { "startMs": 9000, "durationMs": 2000 }
+    },
+    {
       "kind": "rest",
-      "id": "short-reset",
-      "title": "Breath Reset",
-      "durationMs": 2000
+      "id": "rest-after-hiit-round",
+      "title": "Recover",
+      "durationMs": 1800
     }
   ]
 }
