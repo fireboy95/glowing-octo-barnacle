@@ -76,6 +76,91 @@ Use coherent timelines:
 - Avoid impossible countdown setup (`intervalMs` too large for duration).
 - Keep simultaneous cues intentional (e.g., text + countdown overlap is OK).
 
+## Camera Script Syntax (`cameraCue`)
+A `cameraCue` item controls framing over a timed interval:
+
+```json
+{
+  "kind": "cameraCue",
+  "id": "cam-1",
+  "timing": { "startMs": 0, "durationMs": 4000 },
+  "directives": [
+    { "type": "position", "position": { "x": 0, "y": 1.5, "z": 3.2 }, "easing": "easeOut" },
+    { "type": "lookAt", "target": { "x": 0, "y": 1.0, "z": 0 }, "easing": "easeInOut" }
+  ]
+}
+```
+
+`cameraCue` requirements:
+- Required fields: `kind`, `id`, `timing`, `directives`
+- `kind` must be exactly `"cameraCue"`
+- `directives` must contain at least 1 directive object
+- `timing.startMs` / `timing.durationMs` must be integer milliseconds
+
+Allowed `easing` values on directives:
+- `linear`
+- `easeIn`
+- `easeOut`
+- `easeInOut`
+
+### Supported Camera Directive Types
+
+1) `lookAt`
+```json
+{ "type": "lookAt", "target": { "x": 0, "y": 1, "z": 0 }, "easing": "linear" }
+```
+- Required: `type`, `target`
+- `target` is a 3D vector `{x,y,z}`
+
+2) `position`
+```json
+{ "type": "position", "position": { "x": 0, "y": 1.4, "z": 3.5 }, "easing": "easeOut" }
+```
+- Required: `type`, `position`
+- `position` is a 3D vector `{x,y,z}`
+
+3) `yaw/pitch/roll`
+```json
+{ "type": "yaw/pitch/roll", "yawRad": 0.3, "pitchRad": -0.1, "rollRad": 0.0, "easing": "easeInOut" }
+```
+- Required: `type`, `yawRad`, `pitchRad`, `rollRad`
+- Angles are numeric radians
+
+4) `orbit`
+```json
+{ "type": "orbit", "center": { "x": 0, "y": 1, "z": 0 }, "radius": 3, "azimuthRad": 1.2, "elevationRad": 0.2, "easing": "linear" }
+```
+- Required: `type`, `center`, `radius`, `azimuthRad`, `elevationRad`
+- `center` is a 3D vector `{x,y,z}`
+
+5) `dolly`
+```json
+{ "type": "dolly", "distance": -0.6, "easing": "easeIn" }
+```
+- Required: `type`, `distance`
+- `distance` is numeric; positive/negative meaning is renderer-defined
+
+6) `panTo`
+```json
+{ "type": "panTo", "target": { "x": 0.4, "y": 1.2, "z": 0.1 }, "easing": "easeOut" }
+```
+- Required: `type`, `target`
+- `target` is a 3D vector `{x,y,z}`
+
+7) `fov`
+```json
+{ "type": "fov", "fovDeg": 45, "easing": "easeInOut" }
+```
+- Required: `type`, `fovDeg`
+- `fovDeg` is numeric degrees
+
+### Camera Syntax Pitfalls to Avoid
+- Using `"yawPitchRoll"` instead of exact `"yaw/pitch/roll"`.
+- Omitting required fields for a directive type (for example, missing `center` on `orbit`).
+- Using unknown directive properties where `additionalProperties: false` applies.
+- Passing string numbers (like `"45"`) instead of numeric values for camera fields.
+- Creating empty `directives: []` arrays (must contain at least one directive).
+
 ## Common Validation Failures to Avoid
 - Wrong `schemaVersion` (must be `"1.2.1"`).
 - Missing required fields on top-level or item-level objects.
@@ -94,7 +179,7 @@ To generate rich, flexible routines:
 3. Add pacing with `countdownCue` and optional `rest` phases.
 4. Add visual context via `overlaySprite` / `overlayPolygon`.
 5. Apply stylistic or thematic effects with `videoFilterCue`.
-6. Drive framing with `cameraCue.directives` (`lookAt`, `position`, `yaw/pitch/roll`, `orbit`).
+6. Drive framing with `cameraCue.directives` (`lookAt`, `position`, `yaw/pitch/roll`, `orbit`, `dolly`, `panTo`, `fov`).
 7. Keep IDs stable and meaningful for downstream editing.
 
 ## Complete Valid Example Script
