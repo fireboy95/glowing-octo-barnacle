@@ -192,6 +192,25 @@
         "easeInOut"
       ]
     },
+    "movementTransitionBlend": {
+      "type": "string",
+      "description": "Blend policy used when interpolating from the previous movementStep pose.",
+      "enum": [
+        "interpolate",
+        "hold",
+        "additive"
+      ]
+    },
+    "movementTransitionEasing": {
+      "type": "string",
+      "description": "Easing curve used while transitioning into this movementStep.",
+      "enum": [
+        "linear",
+        "easeIn",
+        "easeOut",
+        "easeInOut"
+      ]
+    },
     "cameraDirectiveLookAt": {
       "type": "object",
       "additionalProperties": false,
@@ -470,6 +489,17 @@
         "durationMs": {
           "type": "integer",
           "minimum": 0
+        },
+        "blend": {
+          "$ref": "#/$defs/movementTransitionBlend"
+        },
+        "easing": {
+          "$ref": "#/$defs/movementTransitionEasing"
+        },
+        "transitionMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional transition window in milliseconds for entering this step. If omitted, current interpolation behavior is preserved."
         },
         "pose": {
           "$ref": "#/$defs/pose"
