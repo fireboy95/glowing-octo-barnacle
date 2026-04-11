@@ -713,6 +713,7 @@ function runRenderer(): void {
 
   try {
     const parsedInput = JSON.parse(inputElement.value);
+    const frameInput = resolveRendererFrameInput(parsedInput);
     if (
       typeof parsedInput === 'object' &&
       parsedInput !== null &&
@@ -732,7 +733,7 @@ function runRenderer(): void {
       }
     }
 
-    const result = buildRendererFrame(parsedInput);
+    const result = buildRendererFrame(frameInput);
     currentNormalizedPose = result.pose;
     setOutput(formatJson(result));
   } catch (error: unknown) {
@@ -752,6 +753,33 @@ function runRenderer(): void {
         '(file contents expect schemaVersion "1.2.1").',
     );
   }
+}
+
+function resolveRendererFrameInput(parsedInput: unknown): { pose: unknown } {
+  if (typeof parsedInput === 'object' && parsedInput !== null && !Array.isArray(parsedInput)) {
+    if ('pose' in parsedInput) {
+      return { pose: (parsedInput as { pose: unknown }).pose };
+    }
+
+    if ('items' in parsedInput && Array.isArray((parsedInput as { items?: unknown }).items)) {
+      const firstMovementStep = (parsedInput as { items: unknown[] }).items.find((item) => {
+        return (
+          typeof item === 'object' &&
+          item !== null &&
+          (item as { kind?: unknown }).kind === 'movementStep' &&
+          'pose' in (item as Record<string, unknown>)
+        );
+      });
+
+      if (firstMovementStep && typeof firstMovementStep === 'object' && firstMovementStep !== null) {
+        return { pose: (firstMovementStep as { pose: unknown }).pose };
+      }
+    }
+  }
+
+  throw new Error(
+    'Input must be either a renderer frame object with `pose` or a routine script containing at least one `movementStep` item with `pose`.',
+  );
 }
 
 function mountApp(): void {
