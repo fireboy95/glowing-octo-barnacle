@@ -226,7 +226,27 @@ interface ScriptPreviewFrame {
   durationMs: number;
 }
 
+interface ScriptPreviewTextCue {
+  type: 'dialogue' | 'text' | 'countdown';
+  startMs: number;
+  endMs: number;
+  text: string;
+  startValue?: number;
+  intervalMs?: number;
+}
+
+interface ScriptPreviewCameraCue {
+  startMs: number;
+  endMs: number;
+  yawDeg: number;
+  pitchDeg: number;
+  fovDeg?: number;
+}
+
 let scriptPreviewFrames: ScriptPreviewFrame[] = [{ pose: currentNormalizedPose, durationMs: 1500 }];
+let scriptPreviewTextCues: ScriptPreviewTextCue[] = [];
+let scriptPreviewCameraCues: ScriptPreviewCameraCue[] = [];
+let scriptPreviewTotalDurationMs = 1500;
 let currentAnimationSeconds = 0;
 let animationHandle: number | null = null;
 let animationStart = 0;
@@ -301,7 +321,7 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
     id: 'script-preview',
     label: 'Script Preview',
     description:
-      'Plays movementStep poses from your executed JSON script; non-movement items are ignored for animation.',
+      'Plays movementStep poses and timed cues (dialogue/text/countdown/camera) from your executed JSON script.',
     speedMultiplier: 0.45,
     transform: (joints, phase) => {
       const getActiveScriptPreviewPose = (): NormalizedPose => {
@@ -559,9 +579,17 @@ function buildAnimatedSkeleton(timeSeconds: number): Record<string, Vec3> {
 
   routine.transform(joints, phase, cycle);
 
-  const orbitAngle = timeSeconds * 0.5;
+  const loopMs = (timeSeconds * 1000) % Math.max(1, scriptPreviewTotalDurationMs);
+  const activeCameraCue = scriptPreviewCameraCues.find((cue) => loopMs >= cue.startMs && loopMs <= cue.endMs);
+  const yawRadians = ((activeCameraCue?.yawDeg ?? 0) * Math.PI) / 180;
+  const pitchOffset = ((activeCameraCue?.pitchDeg ?? 0) / 45) * 0.2;
+  const orbitAngle = timeSeconds * 0.5 + yawRadians;
   for (const [joint, position] of Object.entries(joints)) {
-    joints[joint] = rotateAroundY(position, orbitAngle);
+    const rotated = rotateAroundY(position, orbitAngle);
+    joints[joint] = {
+      ...rotated,
+      y: rotated.y + pitchOffset,
+    };
   }
 
   return joints;
@@ -572,6 +600,7 @@ function drawRendererFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContex
   const height = canvas.height;
   const t = (timeMs - animationStart) / 1000;
   const joints = buildAnimatedSkeleton(t);
+  const scriptLoopMs = (t * 1000) % Math.max(1, scriptPreviewTotalDurationMs);
   const routine = getSelectedRoutine();
 
   ctx.clearRect(0, 0, width, height);
@@ -746,6 +775,46 @@ function drawRendererFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContex
   ctx.font = '12px Inter, system-ui, sans-serif';
   ctx.fillStyle = 'rgba(213, 232, 255, 0.8)';
   ctx.fillText(routine.description, 16, 48);
+
+  if (selectedRoutineId === 'script-preview') {
+    drawScriptPreviewCues(ctx, width, height, scriptLoopMs);
+  }
+}
+
+function drawScriptPreviewCues(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  loopMs: number,
+): void {
+  const activeCues = scriptPreviewTextCues.filter((cue) => loopMs >= cue.startMs && loopMs <= cue.endMs);
+  if (activeCues.length === 0) {
+    return;
+  }
+
+  let topOffset = 72;
+  for (const cue of activeCues) {
+    const cueText =
+      cue.type === 'countdown' && cue.startValue !== undefined && cue.intervalMs
+        ? `${Math.max(0, cue.startValue - Math.floor((loopMs - cue.startMs) / cue.intervalMs))}`
+        : cue.text;
+    const fontSize = cue.type === 'countdown' ? 34 : cue.type === 'text' ? 28 : 20;
+    ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(5, 16, 35, 0.62)';
+    const paddingX = 14;
+    const paddingY = 8;
+    const widthEstimate = ctx.measureText(cueText).width + paddingX * 2;
+    const rectX = width / 2 - widthEstimate / 2;
+    const rectY = topOffset - 2;
+    const rectHeight = fontSize + paddingY * 2;
+    ctx.fillRect(rectX, rectY, widthEstimate, rectHeight);
+    ctx.fillStyle = '#e6f5ff';
+    ctx.fillText(cueText, width / 2, topOffset + paddingY * 0.5);
+    topOffset += rectHeight + 8;
+  }
+  ctx.textAlign = 'start';
 }
 
 function updateRoutineDescription(): void {
@@ -895,6 +964,10 @@ function runRenderer(): void {
     const result = buildRendererFrame(frameInput);
     currentNormalizedPose = result.pose;
     scriptPreviewFrames = resolveScriptPreviewFrames(parsedInput, currentNormalizedPose);
+    const scriptPreviewCues = resolveScriptPreviewCues(parsedInput);
+    scriptPreviewTextCues = scriptPreviewCues.textCues;
+    scriptPreviewCameraCues = scriptPreviewCues.cameraCues;
+    scriptPreviewTotalDurationMs = scriptPreviewCues.totalDurationMs;
     selectedRoutineId = 'script-preview';
     const routineSelect = document.getElementById('animation-routine');
     if (routineSelect instanceof HTMLSelectElement) {
@@ -1019,6 +1092,135 @@ function resolveScriptPreviewFrames(parsedInput: unknown, fallbackPose: Normaliz
   }
 
   return frames;
+}
+
+function resolveScriptPreviewCues(parsedInput: unknown): {
+  textCues: ScriptPreviewTextCue[];
+  cameraCues: ScriptPreviewCameraCue[];
+  totalDurationMs: number;
+} {
+  const textCues: ScriptPreviewTextCue[] = [];
+  const cameraCues: ScriptPreviewCameraCue[] = [];
+  let cursorMs = 0;
+
+  const getTimingWindow = (item: { timing?: unknown }): { startMs: number; durationMs: number } | null => {
+    if (typeof item.timing !== 'object' || item.timing === null) {
+      return null;
+    }
+    const timing = item.timing as { startMs?: unknown; durationMs?: unknown };
+    if (typeof timing.startMs !== 'number' || typeof timing.durationMs !== 'number') {
+      return null;
+    }
+    return {
+      startMs: Math.max(0, Math.round(timing.startMs)),
+      durationMs: Math.max(0, Math.round(timing.durationMs)),
+    };
+  };
+
+  const visitItem = (item: unknown): void => {
+    if (typeof item !== 'object' || item === null) {
+      return;
+    }
+    const candidate = item as {
+      kind?: unknown;
+      durationMs?: unknown;
+      items?: unknown;
+      steps?: unknown;
+      timing?: unknown;
+      text?: unknown;
+      speaker?: unknown;
+      startValue?: unknown;
+      intervalMs?: unknown;
+      directives?: unknown;
+    };
+
+    if (candidate.kind === 'movementStep' || candidate.kind === 'rest') {
+      if (typeof candidate.durationMs === 'number' && candidate.durationMs > 0) {
+        cursorMs += Math.round(candidate.durationMs);
+      }
+      return;
+    }
+
+    if (candidate.kind === 'exercise' && Array.isArray(candidate.steps)) {
+      for (const step of candidate.steps) {
+        visitItem(step);
+      }
+      return;
+    }
+
+    const timing = getTimingWindow(candidate);
+    if (!timing) {
+      return;
+    }
+    const startMs = cursorMs + timing.startMs;
+    const endMs = startMs + timing.durationMs;
+
+    if (candidate.kind === 'dialogueCue' && typeof candidate.text === 'string') {
+      const speaker = typeof candidate.speaker === 'string' ? `${candidate.speaker}: ` : '';
+      textCues.push({ type: 'dialogue', startMs, endMs, text: `${speaker}${candidate.text}` });
+      return;
+    }
+
+    if (candidate.kind === 'textCue' && typeof candidate.text === 'string') {
+      textCues.push({ type: 'text', startMs, endMs, text: candidate.text });
+      return;
+    }
+
+    if (
+      candidate.kind === 'countdownCue' &&
+      typeof candidate.startValue === 'number' &&
+      typeof candidate.intervalMs === 'number' &&
+      candidate.intervalMs > 0
+    ) {
+      textCues.push({
+        type: 'countdown',
+        startMs,
+        endMs,
+        text: '',
+        startValue: Math.round(candidate.startValue),
+        intervalMs: Math.round(candidate.intervalMs),
+      });
+      return;
+    }
+
+    if (candidate.kind === 'cameraCue' && Array.isArray(candidate.directives)) {
+      let yawDeg = 0;
+      let pitchDeg = 0;
+      let fovDeg: number | undefined;
+      for (const directive of candidate.directives) {
+        if (typeof directive !== 'object' || directive === null) {
+          continue;
+        }
+        const entry = directive as { type?: unknown; yaw?: unknown; pitch?: unknown; fov?: unknown };
+        if (entry.type === 'yawPitchRoll') {
+          if (typeof entry.yaw === 'number') {
+            yawDeg = entry.yaw;
+          }
+          if (typeof entry.pitch === 'number') {
+            pitchDeg = entry.pitch;
+          }
+        } else if (entry.type === 'fov' && typeof entry.fov === 'number') {
+          fovDeg = entry.fov;
+        }
+      }
+      cameraCues.push({ startMs, endMs, yawDeg, pitchDeg, fovDeg });
+    }
+  };
+
+  if (typeof parsedInput === 'object' && parsedInput !== null && !Array.isArray(parsedInput)) {
+    const candidate = parsedInput as { items?: unknown };
+    if (Array.isArray(candidate.items)) {
+      for (const item of candidate.items) {
+        visitItem(item);
+      }
+    }
+  }
+
+  const maxCueEndMs = [...textCues.map((cue) => cue.endMs), ...cameraCues.map((cue) => cue.endMs)].reduce(
+    (max, current) => Math.max(max, current),
+    0,
+  );
+  return { textCues, cameraCues, totalDurationMs: Math.max(cursorMs, maxCueEndMs, 1500) };
 }
 
 function mountApp(): void {
