@@ -160,6 +160,42 @@ Allowed `easing` values on directives:
 - Using unknown directive properties where `additionalProperties: false` applies.
 - Passing string numbers (like `"45"`) instead of numeric values for camera fields.
 - Creating empty `directives: []` arrays (must contain at least one directive).
+- Encoding camera intent inside `textCue.text` (for example, `CAM: push in`, `CAMERA LEFT`, `zoom now`) instead of using explicit `cameraCue` directives.
+
+### Camera Intent Validation Guideline
+- Treat camera-language in `textCue` as invalid unless there is a corresponding `cameraCue` item with one or more `directives` that implement that intent in the same timeline window.
+- If camera movement is intended, express the movement in `cameraCue.directives` (not in caption text).
+
+Before (invalid caption-only camera note):
+```json
+{
+  "kind": "textCue",
+  "id": "cam-note-1",
+  "text": "CAM: push in to athlete face",
+  "timing": { "startMs": 4000, "durationMs": 2000 }
+}
+```
+
+After (valid camera implementation with `position` + `lookAt` + easing):
+```json
+{
+  "kind": "cameraCue",
+  "id": "cam-push-face-1",
+  "timing": { "startMs": 4000, "durationMs": 2000 },
+  "directives": [
+    {
+      "type": "position",
+      "position": { "x": 0.1, "y": 1.55, "z": 2.1 },
+      "easing": "easeInOut"
+    },
+    {
+      "type": "lookAt",
+      "target": { "x": 0.0, "y": 1.45, "z": 0.0 },
+      "easing": "easeOut"
+    }
+  ]
+}
+```
 
 ## Common Validation Failures to Avoid
 - Wrong `schemaVersion` (must be `"1.2.1"`).
@@ -171,6 +207,7 @@ Allowed `easing` values on directives:
 - Invalid Euler `order`/`unit`.
 - Invalid `placement`/`anchor` coordinate formats.
 - Invalid enum values for presets, easing, blend modes, etc.
+- Camera move intent present only in `textCue.text` without a matching `cameraCue` + `directives`.
 
 ## Composition Guidance for Arbitrary Exercise Videos
 To generate rich, flexible routines:
