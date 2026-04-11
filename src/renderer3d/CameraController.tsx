@@ -9,6 +9,7 @@ export interface CameraState {
   position: Vector3;
   target: Vector3;
   up: Vector3;
+  fovDeg: number;
 }
 
 export interface CameraDirectiveBase {
@@ -50,13 +51,19 @@ export interface CameraPanToDirective extends CameraDirectiveBase {
   target: Vector3;
 }
 
+export interface CameraFovDirective extends CameraDirectiveBase {
+  type: 'fov';
+  fovDeg: number;
+}
+
 export type CameraDirective =
   | CameraLookAtDirective
   | CameraPositionDirective
   | CameraYawPitchRollDirective
   | CameraOrbitDirective
   | CameraDollyDirective
-  | CameraPanToDirective;
+  | CameraPanToDirective
+  | CameraFovDirective;
 
 export interface CameraControllerProps {
   preset: CameraPreset;
@@ -77,6 +84,7 @@ interface CameraResolutionOptions extends Pick<CameraControllerProps, 'orbitAngl
 
 const DEFAULT_TARGET: Vector3 = { x: 0, y: 1, z: 0 };
 const DEFAULT_UP: Vector3 = { x: 0, y: 1, z: 0 };
+const DEFAULT_FOV_DEG = 50;
 
 export function lerpPosition(from: Vector3, to: Vector3, alpha: number): Vector3 {
   return {
@@ -120,15 +128,15 @@ function buildPresetCameraState(
   const target = options.target ?? DEFAULT_TARGET;
 
   if (preset === 'front') {
-    return { position: { x: 0, y: 1.2, z: 3 }, target, up: DEFAULT_UP };
+    return { position: { x: 0, y: 1.2, z: 3 }, target, up: DEFAULT_UP, fovDeg: DEFAULT_FOV_DEG };
   }
 
   if (preset === 'side') {
-    return { position: { x: 3, y: 1.2, z: 0 }, target, up: DEFAULT_UP };
+    return { position: { x: 3, y: 1.2, z: 0 }, target, up: DEFAULT_UP, fovDeg: DEFAULT_FOV_DEG };
   }
 
   if (preset === 'top') {
-    return { position: { x: 0, y: 4, z: 0.001 }, target, up: { x: 0, y: 0, z: -1 } };
+    return { position: { x: 0, y: 4, z: 0.001 }, target, up: { x: 0, y: 0, z: -1 }, fovDeg: DEFAULT_FOV_DEG };
   }
 
   const orbitAngle = options.orbitAngleRad ?? 0;
@@ -141,6 +149,7 @@ function buildPresetCameraState(
     },
     target,
     up: DEFAULT_UP,
+    fovDeg: DEFAULT_FOV_DEG,
   };
 }
 
@@ -186,6 +195,7 @@ export function applyCameraDirective(base: CameraState, directive: CameraDirecti
         z: base.position.z + forward.z,
       },
       up: deriveUpFromRoll(directive.rollRad),
+      fovDeg: base.fovDeg,
     };
   }
 
@@ -201,6 +211,14 @@ export function applyCameraDirective(base: CameraState, directive: CameraDirecti
       },
       target: orbitTarget,
       up: base.up,
+      fovDeg: base.fovDeg,
+    };
+  }
+
+  if (directive.type === 'fov') {
+    return {
+      ...base,
+      fovDeg: directive.fovDeg,
     };
   }
 
@@ -231,6 +249,7 @@ function interpolateCameraStates(from: CameraState, to: CameraState, alpha: numb
       y: interpolateAngle(from.up.y, to.up.y, alpha),
       z: interpolateAngle(from.up.z, to.up.z, alpha),
     },
+    fovDeg: from.fovDeg + (to.fovDeg - from.fovDeg) * alpha,
   };
 }
 

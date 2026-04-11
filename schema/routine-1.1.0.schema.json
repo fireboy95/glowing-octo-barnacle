@@ -324,6 +324,27 @@
         }
       }
     },
+    "cameraDirectiveFov": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "fovDeg"
+      ],
+      "properties": {
+        "type": {
+          "const": "fov"
+        },
+        "fovDeg": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 180
+        },
+        "easing": {
+          "$ref": "#/$defs/cameraEasing"
+        }
+      }
+    },
     "cameraDirective": {
       "oneOf": [
         {
@@ -343,6 +364,9 @@
         },
         {
           "$ref": "#/$defs/cameraDirectivePanTo"
+        },
+        {
+          "$ref": "#/$defs/cameraDirectiveFov"
         }
       ]
     },
