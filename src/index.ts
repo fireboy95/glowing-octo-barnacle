@@ -238,8 +238,9 @@ interface ScriptPreviewTextCue {
 interface ScriptPreviewCameraCue {
   startMs: number;
   endMs: number;
-  yawDeg: number;
-  pitchDeg: number;
+  yawRad: number;
+  pitchRad: number;
+  orbitAngleRad?: number;
   fovDeg?: number;
 }
 
@@ -516,6 +517,14 @@ function rotateAroundY(point: Vec3, angle: number): Vec3 {
   };
 }
 
+function rotateAroundX(point: Vec3, angle: number): Vec3 {
+  return {
+    x: point.x,
+    y: point.y * Math.cos(angle) - point.z * Math.sin(angle),
+    z: point.y * Math.sin(angle) + point.z * Math.cos(angle),
+  };
+}
+
 function projectPoint(point: Vec3, width: number, height: number): ProjectedPoint {
   const zOffset = point.z + 3;
   const perspective = 280 / zOffset;
@@ -581,15 +590,11 @@ function buildAnimatedSkeleton(timeSeconds: number): Record<string, Vec3> {
 
   const loopMs = (timeSeconds * 1000) % Math.max(1, scriptPreviewTotalDurationMs);
   const activeCameraCue = scriptPreviewCameraCues.find((cue) => loopMs >= cue.startMs && loopMs <= cue.endMs);
-  const yawRadians = ((activeCameraCue?.yawDeg ?? 0) * Math.PI) / 180;
-  const pitchOffset = ((activeCameraCue?.pitchDeg ?? 0) / 45) * 0.2;
-  const orbitAngle = timeSeconds * 0.5 + yawRadians;
+  const yawRadians = activeCameraCue?.orbitAngleRad ?? activeCameraCue?.yawRad ?? 0;
+  const pitchRadians = activeCameraCue?.pitchRad ?? 0;
   for (const [joint, position] of Object.entries(joints)) {
-    const rotated = rotateAroundY(position, orbitAngle);
-    joints[joint] = {
-      ...rotated,
-      y: rotated.y + pitchOffset,
-    };
+    const yawRotated = rotateAroundY(position, yawRadians);
+    joints[joint] = rotateAroundX(yawRotated, pitchRadians);
   }
 
   return joints;
@@ -1184,26 +1189,52 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
     }
 
     if (candidate.kind === 'cameraCue' && Array.isArray(candidate.directives)) {
-      let yawDeg = 0;
-      let pitchDeg = 0;
+      let yawRad = 0;
+      let pitchRad = 0;
+      let orbitAngleRad: number | undefined;
       let fovDeg: number | undefined;
       for (const directive of candidate.directives) {
         if (typeof directive !== 'object' || directive === null) {
           continue;
         }
-        const entry = directive as { type?: unknown; yaw?: unknown; pitch?: unknown; fov?: unknown };
-        if (entry.type === 'yawPitchRoll') {
+        const entry = directive as {
+          type?: unknown;
+          yaw?: unknown;
+          pitch?: unknown;
+          yawRad?: unknown;
+          pitchRad?: unknown;
+          angleRad?: unknown;
+          fov?: unknown;
+          fovDeg?: unknown;
+        };
+
+        if (entry.type === 'yaw/pitch/roll') {
+          if (typeof entry.yawRad === 'number') {
+            yawRad = entry.yawRad;
+          }
+          if (typeof entry.pitchRad === 'number') {
+            pitchRad = entry.pitchRad;
+          }
+        } else if (entry.type === 'yawPitchRoll') {
+          // Backward compatibility for legacy cue scripts that authored degrees.
           if (typeof entry.yaw === 'number') {
-            yawDeg = entry.yaw;
+            yawRad = (entry.yaw * Math.PI) / 180;
           }
           if (typeof entry.pitch === 'number') {
-            pitchDeg = entry.pitch;
+            pitchRad = (entry.pitch * Math.PI) / 180;
           }
-        } else if (entry.type === 'fov' && typeof entry.fov === 'number') {
-          fovDeg = entry.fov;
+        } else if (entry.type === 'orbit' && typeof entry.angleRad === 'number') {
+          orbitAngleRad = entry.angleRad;
+        } else if (entry.type === 'fov') {
+          if (typeof entry.fovDeg === 'number') {
+            fovDeg = entry.fovDeg;
+          } else if (typeof entry.fov === 'number') {
+            // Backward compatibility for legacy cue scripts.
+            fovDeg = entry.fov;
+          }
         }
       }
-      cameraCues.push({ startMs, endMs, yawDeg, pitchDeg, fovDeg });
+      cameraCues.push({ startMs, endMs, yawRad, pitchRad, orbitAngleRad, fovDeg });
     }
   };
 
