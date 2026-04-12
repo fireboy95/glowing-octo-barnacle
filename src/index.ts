@@ -1,6 +1,13 @@
 import { buildRendererFrame } from './renderer';
 import { resolveActiveCameraCue, resolveNextCameraCue, type CameraCue } from './renderer3d/PlaybackBridge';
 import { interpolateNormalizedTimelinePose } from './timeline';
+import Ajv2020 from 'ajv/dist/2020';
+import routineSchema from '../schema/routine-1.1.0.schema.json';
+import {
+  validateRoutineAfterSchema,
+  type CombinedValidationResult,
+  type AjvLikeValidateFunction,
+} from './validation/domainValidation3d';
 
 const SAMPLE_INPUT = {
   pose: {
@@ -264,6 +271,8 @@ let currentAnimationSeconds = 0;
 let animationHandle: number | null = null;
 let animationStart = 0;
 let selectedRoutineId = 'jumping-jacks';
+const routineAjv = new Ajv2020({ allErrors: true, strict: false });
+const validateRoutineSchema = routineAjv.compile(routineSchema) as AjvLikeValidateFunction;
 
 function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
@@ -1095,6 +1104,24 @@ function parseRendererInput(input: string): { parsedInput: unknown; warning?: st
   }
 }
 
+function formatRoutineValidationFailure(validation: CombinedValidationResult): string {
+  const lines: string[] = ['Invalid JSON script:'];
+  const formatPath = (path: string): string => (path.length > 0 ? path : '(root)');
+
+  for (const schemaError of validation.schemaErrors) {
+    lines.push(`- Schema ${formatPath(schemaError.path)}: ${schemaError.message}`);
+  }
+
+  for (const domainError of validation.domainErrors) {
+    lines.push(`- Domain ${formatPath(domainError.path)}: ${domainError.message}`);
+  }
+
+  lines.push(
+    'Hint: validate your script against schema/routine-1.1.0.schema.json (file contents expect schemaVersion "1.2.1").',
+  );
+  return lines.join('\n');
+}
+
 function runRenderer(): void {
   const inputElement = document.getElementById('renderer-input');
 
@@ -1104,25 +1131,18 @@ function runRenderer(): void {
 
   try {
     const { parsedInput, warning } = parseRendererInput(inputElement.value);
-    const frameInput = resolveRendererFrameInput(parsedInput);
-    if (
-      typeof parsedInput === 'object' &&
-      parsedInput !== null &&
-      !Array.isArray(parsedInput) &&
-      !('pose' in parsedInput)
-    ) {
-      const requiredFields = ['schemaVersion', 'type', 'id', 'title', 'bodyModel', 'items'];
-      const missingFields = requiredFields.filter((field) => !(field in parsedInput));
+    const isObjectInput =
+      typeof parsedInput === 'object' && parsedInput !== null && !Array.isArray(parsedInput);
+    const isAdHocPoseInput = isObjectInput && 'pose' in parsedInput;
 
-      if (missingFields.length > 0) {
-        setOutput(
-          `Invalid JSON script: missing required top-level field(s): ${missingFields.join(', ')}.\n` +
-            'Hint: validate your script against schema/routine-1.1.0.schema.json ' +
-            '(file contents expect schemaVersion "1.2.1").',
-        );
+    if (!isAdHocPoseInput) {
+      const validation = validateRoutineAfterSchema(parsedInput, validateRoutineSchema);
+      if (!validation.valid) {
+        setOutput(formatRoutineValidationFailure(validation));
         return;
       }
     }
+    const frameInput = resolveRendererFrameInput(parsedInput);
 
     const result = buildRendererFrame(frameInput);
     currentNormalizedPose = result.pose;
