@@ -1,5 +1,6 @@
 import { buildRendererFrame } from './renderer';
 import { resolveActiveCameraCue, resolveNextCameraCue, type CameraCue } from './renderer3d/PlaybackBridge';
+import { interpolateNormalizedTimelinePose } from './timeline';
 
 const SAMPLE_INPUT = {
   pose: {
@@ -361,26 +362,7 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
               return frame.pose;
             }
 
-            const jointNames = new Set<string>([
-              ...Object.keys(frame.pose.jointRotations),
-              ...Object.keys(nextFrame.pose.jointRotations),
-            ]);
-            const jointRotations: NormalizedPose['jointRotations'] = {};
-            for (const jointName of jointNames) {
-              const from = frame.pose.jointRotations[jointName] ?? [0, 0, 0, 1];
-              const to = nextFrame.pose.jointRotations[jointName] ?? from;
-              jointRotations[jointName] = [
-                from[0] + (to[0] - from[0]) * easedAlpha,
-                from[1] + (to[1] - from[1]) * easedAlpha,
-                from[2] + (to[2] - from[2]) * easedAlpha,
-                from[3] + (to[3] - from[3]) * easedAlpha,
-              ];
-            }
-
-            return {
-              bodyModel: frame.pose.bodyModel,
-              jointRotations,
-            };
+            return interpolateNormalizedTimelinePose(frame.pose, nextFrame.pose, easedAlpha);
           }
 
           cursorMs = frameEndMs;
@@ -439,29 +421,32 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
     label: 'Jumping Jacks',
     description: 'Full-body cardio with synchronized arm raises and split-step leg movement.',
     speedMultiplier: 1.25,
-    transform: (joints, phase, cycle) => {
-      const armLift = Math.max(0, Math.sin(phase));
-      const legSpread = Math.max(0, Math.sin(phase));
-      const rebound = Math.abs(Math.sin(phase * 0.5));
+    transform: (joints, phase) => {
+      const jackOpen = (Math.sin(phase) + 1) * 0.5;
+      const rebound = Math.sin(phase * 2) ** 2;
 
       joints.pelvis.y += rebound * 0.08;
       joints.head.y += rebound * 0.05;
 
-      joints.elbowL.y += armLift * 0.25;
-      joints.wristL.y += armLift * 0.42;
-      joints.elbowR.y += armLift * 0.25;
-      joints.wristR.y += armLift * 0.42;
+      joints.elbowL.y += jackOpen * 0.28;
+      joints.wristL.y += jackOpen * 0.5;
+      joints.elbowR.y += jackOpen * 0.28;
+      joints.wristR.y += jackOpen * 0.5;
 
-      joints.wristL.x -= armLift * 0.18;
-      joints.wristR.x += armLift * 0.18;
+      joints.wristL.x -= jackOpen * 0.2;
+      joints.wristR.x += jackOpen * 0.2;
+      joints.elbowL.x -= jackOpen * 0.08;
+      joints.elbowR.x += jackOpen * 0.08;
 
-      joints.kneeL.x -= legSpread * 0.13;
-      joints.ankleL.x -= legSpread * 0.2;
-      joints.kneeR.x += legSpread * 0.13;
-      joints.ankleR.x += legSpread * 0.2;
+      joints.kneeL.x -= jackOpen * 0.18;
+      joints.ankleL.x -= jackOpen * 0.3;
+      joints.kneeR.x += jackOpen * 0.18;
+      joints.ankleR.x += jackOpen * 0.3;
 
-      joints.kneeL.y += cycle > 0 ? 0.04 : -0.04;
-      joints.kneeR.y += cycle > 0 ? -0.04 : 0.04;
+      joints.kneeL.y += rebound * 0.06;
+      joints.kneeR.y += rebound * 0.06;
+      joints.ankleL.y += rebound * 0.03;
+      joints.ankleR.y += rebound * 0.03;
     },
   },
   {
