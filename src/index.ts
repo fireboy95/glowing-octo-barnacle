@@ -69,6 +69,13 @@ Timed cue items use:
 - \`startMs\`: integer >= 0
 - \`durationMs\`: integer >= 0
 
+## Runtime behavior notes (important)
+- \`cameraCue.directives\`: runtime applies \`lookAt\`, \`panTo\`, \`position\`, \`yaw/pitch/roll\`, \`orbit\`, \`dolly\`, and \`fov\`.
+- Camera directive \`easing\` is preserved and used for interpolation; include it when you want non-linear transitions.
+- \`orbit.target\` is supported and preserved.
+- \`textCue.placement\`, \`textCue.styleToken\`, \`textCue.animationIn\`, and \`textCue.animationOut\` are preserved in cue payload for downstream consumers.
+- Overlay \`anchor\` and point coordinates support numeric values or \`positionUnitValue\` strings such as \`"64px"\` and \`"25%"\`.
+
 ## Common mistakes to avoid
 - Wrong \`schemaVersion\` (must be \`"1.2.1"\`).
 - Missing required top-level fields.
@@ -157,12 +164,12 @@ interface CameraState {
 }
 
 type CameraDirective =
-  | { type: 'lookAt' | 'panTo'; target: Vec3 }
-  | { type: 'position'; position: Vec3 }
-  | { type: 'yaw/pitch/roll'; yawRad: number; pitchRad: number; rollRad: number }
-  | { type: 'orbit'; angleRad: number; radius?: number; height?: number }
-  | { type: 'dolly'; amount: number }
-  | { type: 'fov'; fovDeg: number };
+  | { type: 'lookAt' | 'panTo'; target: Vec3; easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' }
+  | { type: 'position'; position: Vec3; easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' }
+  | { type: 'yaw/pitch/roll'; yawRad: number; pitchRad: number; rollRad: number; easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' }
+  | { type: 'orbit'; angleRad: number; radius?: number; height?: number; target?: Vec3; easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' }
+  | { type: 'dolly'; amount: number; easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' }
+  | { type: 'fov'; fovDeg: number; easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' };
 
 interface ProjectedPoint {
   x: number;
@@ -255,6 +262,7 @@ interface ScriptPreviewTextCue {
   startMs: number;
   endMs: number;
   text: string;
+  payload?: Record<string, unknown>;
   startValue?: number;
   intervalMs?: number;
 }
@@ -631,14 +639,16 @@ function applyCameraDirectives(base: CameraState, directives: CameraDirective[])
     }
 
     if (directive.type === 'orbit') {
+      const orbitTarget = directive.target ?? state.target;
       const radius = directive.radius ?? 3;
       return {
         ...state,
         position: {
-          x: state.target.x + Math.cos(directive.angleRad) * radius,
+          x: orbitTarget.x + Math.cos(directive.angleRad) * radius,
           y: directive.height ?? state.position.y,
-          z: state.target.z + Math.sin(directive.angleRad) * radius,
+          z: orbitTarget.z + Math.sin(directive.angleRad) * radius,
         },
+        target: orbitTarget,
       };
     }
 
@@ -660,7 +670,11 @@ function applyCameraDirectives(base: CameraState, directives: CameraDirective[])
       };
     }
 
-    return { ...state, fovDeg: directive.fovDeg };
+    if (directive.type === 'fov') {
+      return { ...state, fovDeg: directive.fovDeg };
+    }
+
+    return state;
   }, base);
 }
 
@@ -1127,6 +1141,86 @@ function formatRoutineValidationFailure(validation: CombinedValidationResult): s
   return lines.join('\n');
 }
 
+function asObjectRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
+}
+
+function resolveUnsupportedRuntimeWarnings(parsedInput: unknown): string[] {
+  const unsupportedKinds = new Set<string>();
+  const unsupportedKeysByKind = new Map<string, Set<string>>();
+  const unsupportedKeyAllowList: Record<string, Set<string>> = {
+    movementStep: new Set(['blend', 'easing', 'transitionMs', 'metadata']),
+    exercise: new Set(['repeat', 'metadata']),
+    rest: new Set(['metadata']),
+    dialogueCue: new Set(['audioRef', 'metadata']),
+    textCue: new Set(['placement', 'styleToken', 'animationIn', 'animationOut', 'metadata']),
+    countdownCue: new Set(['styleToken', 'metadata']),
+    overlaySprite: new Set(['metadata']),
+    overlayPolygon: new Set(['metadata']),
+    videoFilterCue: new Set(['intensity', 'blendMode', 'transitionInMs', 'transitionOutMs', 'metadata']),
+    cameraCue: new Set(['metadata']),
+  };
+
+  const registerUnsupportedKey = (kind: string, key: string): void => {
+    if (!unsupportedKeysByKind.has(kind)) {
+      unsupportedKeysByKind.set(kind, new Set<string>());
+    }
+    unsupportedKeysByKind.get(kind)?.add(key);
+  };
+
+  const visit = (item: unknown): void => {
+    const record = asObjectRecord(item);
+    if (!record) {
+      return;
+    }
+    const kind = typeof record.kind === 'string' ? record.kind : undefined;
+    if (!kind) {
+      return;
+    }
+
+    if (!(kind in unsupportedKeyAllowList) && kind !== 'movementStep' && kind !== 'exercise' && kind !== 'rest') {
+      unsupportedKinds.add(kind);
+      return;
+    }
+
+    const unsupportedKeys = unsupportedKeyAllowList[kind];
+    if (unsupportedKeys) {
+      for (const key of Object.keys(record)) {
+        if (unsupportedKeys.has(key)) {
+          registerUnsupportedKey(kind, key);
+        }
+      }
+    }
+
+    if (kind === 'exercise') {
+      const steps = record.steps;
+      if (Array.isArray(steps)) {
+        for (const step of steps) {
+          visit(step);
+        }
+      }
+      return;
+    }
+  };
+
+  const root = asObjectRecord(parsedInput);
+  const items = root?.items;
+  if (Array.isArray(items)) {
+    for (const item of items) {
+      visit(item);
+    }
+  }
+
+  const lines: string[] = [];
+  if (unsupportedKinds.size > 0) {
+    lines.push(`Unsupported routine kinds (ignored): ${Array.from(unsupportedKinds).sort().join(', ')}`);
+  }
+  for (const [kind, keys] of Array.from(unsupportedKeysByKind.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    lines.push(`Unsupported ${kind} keys (currently no-op): ${Array.from(keys).sort().join(', ')}`);
+  }
+  return lines;
+}
+
 function runRenderer(): void {
   const inputElement = document.getElementById('renderer-input');
 
@@ -1163,13 +1257,10 @@ function runRenderer(): void {
       routineSelect.value = selectedRoutineId;
     }
     updateRoutineDescription();
-    if (warning) {
-      setOutput(`${warning}
-
-${formatJson(result)}`);
-      return;
-    }
-    setOutput(formatJson(result));
+    const warnings = [...(warning ? [warning] : []), ...resolveUnsupportedRuntimeWarnings(parsedInput)];
+    const warningPrefix =
+      warnings.length > 0 ? `Warnings:\n${warnings.map((line) => `- ${line}`).join('\n')}\n\n` : '';
+    setOutput(`${warningPrefix}${formatJson(result)}`);
   } catch (error: unknown) {
     if (error instanceof SyntaxError) {
       setOutput(
@@ -1320,7 +1411,13 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
       timing?: unknown;
       text?: unknown;
       speaker?: unknown;
+      audioRef?: unknown;
+      placement?: unknown;
+      styleToken?: unknown;
+      animationIn?: unknown;
+      animationOut?: unknown;
       startValue?: unknown;
+      label?: unknown;
       intervalMs?: unknown;
       directives?: unknown;
       points?: unknown;
@@ -1361,12 +1458,34 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
 
     if (candidate.kind === 'dialogueCue' && typeof candidate.text === 'string') {
       const speaker = typeof candidate.speaker === 'string' ? `${candidate.speaker}: ` : '';
-      textCues.push({ type: 'dialogue', startMs, endMs, text: `${speaker}${candidate.text}` });
+      textCues.push({
+        type: 'dialogue',
+        startMs,
+        endMs,
+        text: `${speaker}${candidate.text}`,
+        payload: {
+          text: candidate.text,
+          speaker: typeof candidate.speaker === 'string' ? candidate.speaker : undefined,
+          audioRef: typeof candidate.audioRef === 'string' ? candidate.audioRef : undefined,
+        },
+      });
       return;
     }
 
     if (candidate.kind === 'textCue' && typeof candidate.text === 'string') {
-      textCues.push({ type: 'text', startMs, endMs, text: candidate.text });
+      textCues.push({
+        type: 'text',
+        startMs,
+        endMs,
+        text: candidate.text,
+        payload: {
+          text: candidate.text,
+          placement: asObjectRecord(candidate.placement) ?? candidate.placement,
+          styleToken: typeof candidate.styleToken === 'string' ? candidate.styleToken : undefined,
+          animationIn: asObjectRecord(candidate.animationIn),
+          animationOut: asObjectRecord(candidate.animationOut),
+        },
+      });
       return;
     }
 
@@ -1383,6 +1502,11 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
         text: '',
         startValue: Math.round(candidate.startValue),
         intervalMs: Math.round(candidate.intervalMs),
+        payload: {
+          value: Math.round(candidate.startValue),
+          label: typeof candidate.label === 'string' ? candidate.label : undefined,
+          styleToken: typeof candidate.styleToken === 'string' ? candidate.styleToken : undefined,
+        },
       });
       return;
     }
@@ -1477,7 +1601,12 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
           position?: unknown;
           fov?: unknown;
           fovDeg?: unknown;
+          easing?: unknown;
         };
+        const easing =
+          entry.easing === 'linear' || entry.easing === 'easeIn' || entry.easing === 'easeOut' || entry.easing === 'easeInOut'
+            ? entry.easing
+            : undefined;
 
         if (
           entry.type === 'yaw/pitch/roll' &&
@@ -1490,6 +1619,7 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
             yawRad: entry.yawRad,
             pitchRad: entry.pitchRad,
             rollRad: entry.rollRad,
+            easing,
           });
         } else if (entry.type === 'yawPitchRoll') {
           // Backward compatibility for legacy cue scripts that authored degrees.
@@ -1499,17 +1629,24 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
               yawRad: (entry.yaw * Math.PI) / 180,
               pitchRad: (entry.pitch * Math.PI) / 180,
               rollRad: 0,
+              easing,
             });
           }
         } else if (entry.type === 'orbit' && typeof entry.angleRad === 'number') {
+          const target = asObjectRecord(entry.target);
           directives.push({
             type: 'orbit',
             angleRad: entry.angleRad,
             radius: typeof entry.radius === 'number' ? entry.radius : undefined,
             height: typeof entry.height === 'number' ? entry.height : undefined,
+            target:
+              target && typeof target.x === 'number' && typeof target.y === 'number' && typeof target.z === 'number'
+                ? { x: target.x, y: target.y, z: target.z }
+                : undefined,
+            easing,
           });
         } else if (entry.type === 'dolly' && typeof entry.amount === 'number') {
-          directives.push({ type: 'dolly', amount: entry.amount });
+          directives.push({ type: 'dolly', amount: entry.amount, easing });
         } else if (
           entry.type === 'position' &&
           typeof entry.position === 'object' &&
@@ -1523,6 +1660,7 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
             directives.push({
               type: 'position',
               position: { x: position.x, y: position.y, z: position.z },
+              easing,
             });
           }
         } else if (
@@ -1538,14 +1676,15 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
             directives.push({
               type: entry.type,
               target: { x: target.x, y: target.y, z: target.z },
+              easing,
             });
           }
         } else if (entry.type === 'fov') {
           if (typeof entry.fovDeg === 'number') {
-            directives.push({ type: 'fov', fovDeg: entry.fovDeg });
+            directives.push({ type: 'fov', fovDeg: entry.fovDeg, easing });
           } else if (typeof entry.fov === 'number') {
             // Backward compatibility for legacy cue scripts.
-            directives.push({ type: 'fov', fovDeg: entry.fov });
+            directives.push({ type: 'fov', fovDeg: entry.fov, easing });
           }
         }
       }
