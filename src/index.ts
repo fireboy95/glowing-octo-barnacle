@@ -1,4 +1,5 @@
 import { buildRendererFrame } from './renderer';
+import { resolveActiveCameraCue, resolveNextCameraCue, type CameraCue } from './renderer3d/PlaybackBridge';
 
 const SAMPLE_INPUT = {
   pose: {
@@ -140,6 +141,21 @@ interface Segment {
   to: string;
 }
 
+interface CameraState {
+  position: Vec3;
+  target: Vec3;
+  up: Vec3;
+  fovDeg: number;
+}
+
+type CameraDirective =
+  | { type: 'lookAt' | 'panTo'; target: Vec3 }
+  | { type: 'position'; position: Vec3 }
+  | { type: 'yaw/pitch/roll'; yawRad: number; pitchRad: number; rollRad: number }
+  | { type: 'orbit'; angleRad: number; radius?: number; height?: number }
+  | { type: 'dolly'; amount: number }
+  | { type: 'fov'; fovDeg: number };
+
 interface ProjectedPoint {
   x: number;
   y: number;
@@ -236,12 +252,7 @@ interface ScriptPreviewTextCue {
 }
 
 interface ScriptPreviewCameraCue {
-  startMs: number;
-  endMs: number;
-  yawRad: number;
-  pitchRad: number;
-  orbitAngleRad?: number;
-  fovDeg?: number;
+  cue: CameraCue;
 }
 
 let scriptPreviewFrames: ScriptPreviewFrame[] = [{ pose: currentNormalizedPose, durationMs: 1500 }];
@@ -337,11 +348,42 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
         const totalDurationMs = scriptPreviewFrames.reduce((total, frame) => total + frame.durationMs, 0);
         const loopMs = (currentAnimationSeconds * 1000) % Math.max(1, totalDurationMs);
         let cursorMs = 0;
-        for (const frame of scriptPreviewFrames) {
-          cursorMs += frame.durationMs;
-          if (loopMs < cursorMs) {
-            return frame.pose;
+        for (let index = 0; index < scriptPreviewFrames.length; index += 1) {
+          const frame = scriptPreviewFrames[index];
+          const frameStartMs = cursorMs;
+          const frameEndMs = frameStartMs + frame.durationMs;
+          if (loopMs < frameEndMs) {
+            const nextFrame = scriptPreviewFrames[(index + 1) % scriptPreviewFrames.length];
+            const alpha = frame.durationMs > 0 ? (loopMs - frameStartMs) / frame.durationMs : 1;
+            const easedAlpha = clamp(alpha, 0, 1);
+
+            if (!nextFrame || nextFrame === frame || easedAlpha <= 0) {
+              return frame.pose;
+            }
+
+            const jointNames = new Set<string>([
+              ...Object.keys(frame.pose.jointRotations),
+              ...Object.keys(nextFrame.pose.jointRotations),
+            ]);
+            const jointRotations: NormalizedPose['jointRotations'] = {};
+            for (const jointName of jointNames) {
+              const from = frame.pose.jointRotations[jointName] ?? [0, 0, 0, 1];
+              const to = nextFrame.pose.jointRotations[jointName] ?? from;
+              jointRotations[jointName] = [
+                from[0] + (to[0] - from[0]) * easedAlpha,
+                from[1] + (to[1] - from[1]) * easedAlpha,
+                from[2] + (to[2] - from[2]) * easedAlpha,
+                from[3] + (to[3] - from[3]) * easedAlpha,
+              ];
+            }
+
+            return {
+              bodyModel: frame.pose.bodyModel,
+              jointRotations,
+            };
           }
+
+          cursorMs = frameEndMs;
         }
 
         return scriptPreviewFrames[scriptPreviewFrames.length - 1].pose;
@@ -509,25 +551,10 @@ function getSelectedRoutine(): AnimationRoutine {
   return EXERCISE_ROUTINES.find((routine) => routine.id === selectedRoutineId) ?? EXERCISE_ROUTINES[0];
 }
 
-function rotateAroundY(point: Vec3, angle: number): Vec3 {
-  return {
-    x: point.x * Math.cos(angle) - point.z * Math.sin(angle),
-    y: point.y,
-    z: point.x * Math.sin(angle) + point.z * Math.cos(angle),
-  };
-}
-
-function rotateAroundX(point: Vec3, angle: number): Vec3 {
-  return {
-    x: point.x,
-    y: point.y * Math.cos(angle) - point.z * Math.sin(angle),
-    z: point.y * Math.sin(angle) + point.z * Math.cos(angle),
-  };
-}
-
-function projectPoint(point: Vec3, width: number, height: number): ProjectedPoint {
-  const zOffset = point.z + 3;
-  const perspective = 280 / zOffset;
+function projectPoint(point: Vec3, width: number, height: number, fovDeg: number): ProjectedPoint {
+  const zOffset = Math.max(0.01, point.z);
+  const focalLength = (height * 0.5) / Math.tan((fovDeg * Math.PI) / 360);
+  const perspective = focalLength / zOffset;
   return {
     x: width / 2 + point.x * perspective,
     y: height / 2 - point.y * perspective,
@@ -549,10 +576,138 @@ function toHsl(hue: number, saturation: number, lightness: number, alpha = 1): s
 }
 
 function projectThickness(thickness: number, depth: number): number {
-  return clamp((thickness * 280) / depth, 2, 90);
+  return clamp((thickness * 320) / Math.max(0.01, depth), 2, 90);
 }
 
-function buildAnimatedSkeleton(timeSeconds: number): Record<string, Vec3> {
+interface AnimatedFrame {
+  joints: Record<string, Vec3>;
+  fovDeg: number;
+}
+
+function normalizeVector3(vector: Vec3): Vec3 {
+  const length = Math.hypot(vector.x, vector.y, vector.z);
+  if (length <= 1e-6) {
+    return { x: 0, y: 0, z: 1 };
+  }
+
+  return {
+    x: vector.x / length,
+    y: vector.y / length,
+    z: vector.z / length,
+  };
+}
+
+function crossProduct(a: Vec3, b: Vec3): Vec3 {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  };
+}
+
+function dotProduct(a: Vec3, b: Vec3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+function applyCameraDirectives(base: CameraState, directives: CameraDirective[]): CameraState {
+  return directives.reduce<CameraState>((state, directive) => {
+    if (directive.type === 'lookAt' || directive.type === 'panTo') {
+      return { ...state, target: directive.target };
+    }
+
+    if (directive.type === 'position') {
+      return { ...state, position: directive.position };
+    }
+
+    if (directive.type === 'yaw/pitch/roll') {
+      const cosPitch = Math.cos(directive.pitchRad);
+      return {
+        ...state,
+        target: {
+          x: state.position.x + Math.sin(directive.yawRad) * cosPitch,
+          y: state.position.y + Math.sin(directive.pitchRad),
+          z: state.position.z + Math.cos(directive.yawRad) * cosPitch,
+        },
+      };
+    }
+
+    if (directive.type === 'orbit') {
+      const radius = directive.radius ?? 3;
+      return {
+        ...state,
+        position: {
+          x: state.target.x + Math.cos(directive.angleRad) * radius,
+          y: directive.height ?? state.position.y,
+          z: state.target.z + Math.sin(directive.angleRad) * radius,
+        },
+      };
+    }
+
+    if (directive.type === 'dolly') {
+      const toward = {
+        x: state.target.x - state.position.x,
+        y: state.target.y - state.position.y,
+        z: state.target.z - state.position.z,
+      };
+      const length = Math.max(0.01, Math.hypot(toward.x, toward.y, toward.z));
+      const scale = (length + directive.amount) / length;
+      return {
+        ...state,
+        position: {
+          x: state.target.x - toward.x * scale,
+          y: state.target.y - toward.y * scale,
+          z: state.target.z - toward.z * scale,
+        },
+      };
+    }
+
+    return { ...state, fovDeg: directive.fovDeg };
+  }, base);
+}
+
+function lerpNumber(from: number, to: number, alpha: number): number {
+  return from + (to - from) * alpha;
+}
+
+function resolveCameraStateAtLoopMs(loopMs: number): CameraState {
+  const cues = scriptPreviewCameraCues.map((entry) => entry.cue);
+  const base: CameraState = {
+    position: { x: 0, y: 1.2, z: 3 },
+    target: { x: 0, y: 1, z: 0 },
+    up: { x: 0, y: 1, z: 0 },
+    fovDeg: 50,
+  };
+  const activeCameraCue = resolveActiveCameraCue(cues, loopMs);
+  if (!activeCameraCue) {
+    return base;
+  }
+
+  const from = applyCameraDirectives(base, activeCameraCue.directives as CameraDirective[]);
+  const next = resolveNextCameraCue(cues, loopMs);
+  if (!next || next.timeMs <= activeCameraCue.timeMs) {
+    return from;
+  }
+
+  const alpha = clamp((loopMs - activeCameraCue.timeMs) / (next.timeMs - activeCameraCue.timeMs), 0, 1);
+  const to = applyCameraDirectives(base, next.directives as CameraDirective[]);
+
+  return {
+    position: {
+      x: lerpNumber(from.position.x, to.position.x, alpha),
+      y: lerpNumber(from.position.y, to.position.y, alpha),
+      z: lerpNumber(from.position.z, to.position.z, alpha),
+    },
+    target: {
+      x: lerpNumber(from.target.x, to.target.x, alpha),
+      y: lerpNumber(from.target.y, to.target.y, alpha),
+      z: lerpNumber(from.target.z, to.target.z, alpha),
+    },
+    up: from.up,
+    fovDeg: lerpNumber(from.fovDeg, to.fovDeg, alpha),
+  };
+}
+
+function buildAnimatedSkeleton(timeSeconds: number): AnimatedFrame {
   currentAnimationSeconds = timeSeconds;
   const routine = getSelectedRoutine();
   const phase = timeSeconds * 2.2 * routine.speedMultiplier;
@@ -589,22 +744,40 @@ function buildAnimatedSkeleton(timeSeconds: number): Record<string, Vec3> {
   routine.transform(joints, phase, cycle);
 
   const loopMs = (timeSeconds * 1000) % Math.max(1, scriptPreviewTotalDurationMs);
-  const activeCameraCue = scriptPreviewCameraCues.find((cue) => loopMs >= cue.startMs && loopMs <= cue.endMs);
-  const yawRadians = activeCameraCue?.orbitAngleRad ?? activeCameraCue?.yawRad ?? 0;
-  const pitchRadians = activeCameraCue?.pitchRad ?? 0;
+  const cameraState = resolveCameraStateAtLoopMs(loopMs);
+  const forward = normalizeVector3({
+    x: cameraState.target.x - cameraState.position.x,
+    y: cameraState.target.y - cameraState.position.y,
+    z: cameraState.target.z - cameraState.position.z,
+  });
+  let right = normalizeVector3(crossProduct(forward, cameraState.up));
+  if (Math.hypot(right.x, right.y, right.z) <= 1e-6) {
+    right = { x: 1, y: 0, z: 0 };
+  }
+  const up = normalizeVector3(crossProduct(right, forward));
+
   for (const [joint, position] of Object.entries(joints)) {
-    const yawRotated = rotateAroundY(position, yawRadians);
-    joints[joint] = rotateAroundX(yawRotated, pitchRadians);
+    const relative = {
+      x: position.x - cameraState.position.x,
+      y: position.y - cameraState.position.y,
+      z: position.z - cameraState.position.z,
+    };
+    joints[joint] = {
+      x: dotProduct(relative, right),
+      y: dotProduct(relative, up),
+      z: dotProduct(relative, forward),
+    };
   }
 
-  return joints;
+  return { joints, fovDeg: cameraState.fovDeg };
 }
 
 function drawRendererFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, timeMs: number): void {
   const width = canvas.width;
   const height = canvas.height;
   const t = (timeMs - animationStart) / 1000;
-  const joints = buildAnimatedSkeleton(t);
+  const animatedFrame = buildAnimatedSkeleton(t);
+  const joints = animatedFrame.joints;
   const scriptLoopMs = (t * 1000) % Math.max(1, scriptPreviewTotalDurationMs);
   const routine = getSelectedRoutine();
 
@@ -620,7 +793,7 @@ function drawRendererFrame(canvas: HTMLCanvasElement, ctx: CanvasRenderingContex
 
   const projectedJoints: Record<string, ProjectedPoint> = {};
   for (const [joint, position] of Object.entries(joints)) {
-    projectedJoints[joint] = projectPoint(position, width, height);
+    projectedJoints[joint] = projectPoint(position, width, height, animatedFrame.fovDeg);
   }
 
   const groundY = height * 0.86;
@@ -1189,10 +1362,7 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
     }
 
     if (candidate.kind === 'cameraCue' && Array.isArray(candidate.directives)) {
-      let yawRad = 0;
-      let pitchRad = 0;
-      let orbitAngleRad: number | undefined;
-      let fovDeg: number | undefined;
+      const directives: CameraDirective[] = [];
       for (const directive of candidate.directives) {
         if (typeof directive !== 'object' || directive === null) {
           continue;
@@ -1203,38 +1373,97 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
           pitch?: unknown;
           yawRad?: unknown;
           pitchRad?: unknown;
+          rollRad?: unknown;
           angleRad?: unknown;
+          radius?: unknown;
+          height?: unknown;
+          target?: unknown;
+          amount?: unknown;
+          position?: unknown;
           fov?: unknown;
           fovDeg?: unknown;
         };
 
-        if (entry.type === 'yaw/pitch/roll') {
-          if (typeof entry.yawRad === 'number') {
-            yawRad = entry.yawRad;
-          }
-          if (typeof entry.pitchRad === 'number') {
-            pitchRad = entry.pitchRad;
-          }
+        if (
+          entry.type === 'yaw/pitch/roll' &&
+          typeof entry.yawRad === 'number' &&
+          typeof entry.pitchRad === 'number' &&
+          typeof entry.rollRad === 'number'
+        ) {
+          directives.push({
+            type: 'yaw/pitch/roll',
+            yawRad: entry.yawRad,
+            pitchRad: entry.pitchRad,
+            rollRad: entry.rollRad,
+          });
         } else if (entry.type === 'yawPitchRoll') {
           // Backward compatibility for legacy cue scripts that authored degrees.
-          if (typeof entry.yaw === 'number') {
-            yawRad = (entry.yaw * Math.PI) / 180;
-          }
-          if (typeof entry.pitch === 'number') {
-            pitchRad = (entry.pitch * Math.PI) / 180;
+          if (typeof entry.yaw === 'number' && typeof entry.pitch === 'number') {
+            directives.push({
+              type: 'yaw/pitch/roll',
+              yawRad: (entry.yaw * Math.PI) / 180,
+              pitchRad: (entry.pitch * Math.PI) / 180,
+              rollRad: 0,
+            });
           }
         } else if (entry.type === 'orbit' && typeof entry.angleRad === 'number') {
-          orbitAngleRad = entry.angleRad;
+          directives.push({
+            type: 'orbit',
+            angleRad: entry.angleRad,
+            radius: typeof entry.radius === 'number' ? entry.radius : undefined,
+            height: typeof entry.height === 'number' ? entry.height : undefined,
+          });
+        } else if (entry.type === 'dolly' && typeof entry.amount === 'number') {
+          directives.push({ type: 'dolly', amount: entry.amount });
+        } else if (
+          entry.type === 'position' &&
+          typeof entry.position === 'object' &&
+          entry.position !== null &&
+          'x' in entry.position &&
+          'y' in entry.position &&
+          'z' in entry.position
+        ) {
+          const position = entry.position as { x: unknown; y: unknown; z: unknown };
+          if (typeof position.x === 'number' && typeof position.y === 'number' && typeof position.z === 'number') {
+            directives.push({
+              type: 'position',
+              position: { x: position.x, y: position.y, z: position.z },
+            });
+          }
+        } else if (
+          (entry.type === 'lookAt' || entry.type === 'panTo') &&
+          typeof entry.target === 'object' &&
+          entry.target !== null &&
+          'x' in entry.target &&
+          'y' in entry.target &&
+          'z' in entry.target
+        ) {
+          const target = entry.target as { x: unknown; y: unknown; z: unknown };
+          if (typeof target.x === 'number' && typeof target.y === 'number' && typeof target.z === 'number') {
+            directives.push({
+              type: entry.type,
+              target: { x: target.x, y: target.y, z: target.z },
+            });
+          }
         } else if (entry.type === 'fov') {
           if (typeof entry.fovDeg === 'number') {
-            fovDeg = entry.fovDeg;
+            directives.push({ type: 'fov', fovDeg: entry.fovDeg });
           } else if (typeof entry.fov === 'number') {
             // Backward compatibility for legacy cue scripts.
-            fovDeg = entry.fov;
+            directives.push({ type: 'fov', fovDeg: entry.fov });
           }
         }
       }
-      cameraCues.push({ startMs, endMs, yawRad, pitchRad, orbitAngleRad, fovDeg });
+
+      if (directives.length > 0) {
+        cameraCues.push({
+          cue: {
+            timeMs: startMs,
+            endTimeMs: endMs,
+            directives,
+          },
+        });
+      }
     }
   };
 
@@ -1247,7 +1476,7 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
     }
   }
 
-  const maxCueEndMs = [...textCues.map((cue) => cue.endMs), ...cameraCues.map((cue) => cue.endMs)].reduce(
+  const maxCueEndMs = [...textCues.map((cue) => cue.endMs), ...cameraCues.map((cue) => cue.cue.endTimeMs ?? cue.cue.timeMs)].reduce(
     (max, current) => Math.max(max, current),
     0,
   );
