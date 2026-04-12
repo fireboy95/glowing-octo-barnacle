@@ -474,7 +474,7 @@ let scriptPreviewTotalDurationMs = 1500;
 let currentAnimationSeconds = 0;
 let animationHandle: number | null = null;
 let animationStart = 0;
-let selectedRoutineId = 'jumping-jacks';
+let selectedRoutineId = 'reverse-lunge-knee-drive';
 const routineAjv = new Ajv2020({ allErrors: true, strict: false });
 const validateRoutineSchema = routineAjv.compile(routineSchema) as AjvLikeValidateFunction;
 
@@ -543,92 +543,6 @@ function normalizeQuaternionLength(value: number): number {
 }
 
 const EXERCISE_ROUTINES: AnimationRoutine[] = [
-  {
-    id: 'script-preview',
-    label: 'Script Preview',
-    description:
-      'Plays movementStep poses and timed cues (dialogue/text/countdown/camera) from your executed JSON script.',
-    speedMultiplier: 0.45,
-    transform: (joints, phase) => {
-      const getActiveScriptPreviewPose = (): NormalizedPose => {
-        if (scriptPreviewFrames.length === 0) {
-          return currentNormalizedPose;
-        }
-
-        if (scriptPreviewFrames.length === 1) {
-          return scriptPreviewFrames[0].pose;
-        }
-
-        const totalDurationMs = scriptPreviewFrames.reduce((total, frame) => total + frame.durationMs, 0);
-        const loopMs = (currentAnimationSeconds * 1000) % Math.max(1, totalDurationMs);
-        let cursorMs = 0;
-        for (let index = 0; index < scriptPreviewFrames.length; index += 1) {
-          const frame = scriptPreviewFrames[index];
-          const frameStartMs = cursorMs;
-          const frameEndMs = frameStartMs + frame.durationMs;
-          if (loopMs < frameEndMs) {
-            const nextFrame = scriptPreviewFrames[(index + 1) % scriptPreviewFrames.length];
-            const alpha = frame.durationMs > 0 ? (loopMs - frameStartMs) / frame.durationMs : 1;
-            const easedAlpha = clamp(alpha, 0, 1);
-
-            if (!nextFrame || nextFrame === frame || easedAlpha <= 0) {
-              return frame.pose;
-            }
-
-            return interpolateNormalizedTimelinePose(frame.pose, nextFrame.pose, easedAlpha);
-          }
-
-          cursorMs = frameEndMs;
-        }
-
-        return scriptPreviewFrames[scriptPreviewFrames.length - 1].pose;
-      };
-
-      const activePose = getActiveScriptPreviewPose();
-      const getJoint = (jointName: string): [number, number, number, number] => {
-        const rotation = activePose.jointRotations[jointName];
-        if (!rotation) {
-          return [0, 0, 0, 1];
-        }
-
-        return rotation;
-      };
-
-      const [shoulderLX, shoulderLY] = getJoint('shoulderL');
-      const [shoulderRX, shoulderRY] = getJoint('shoulderR');
-      const [elbowLX] = getJoint('elbowL');
-      const [elbowRX] = getJoint('elbowR');
-      const [hipLX, hipLY] = getJoint('hipL');
-      const [hipRX, hipRY] = getJoint('hipR');
-      const [kneeLX] = getJoint('kneeL');
-      const [kneeRX] = getJoint('kneeR');
-
-      const idle = Math.sin(phase * 0.55);
-
-      joints.pelvis.y += idle * 0.02;
-      joints.head.y += idle * 0.018;
-
-      joints.elbowL.y += -shoulderLX * 0.32 - elbowLX * 0.24;
-      joints.wristL.y += -shoulderLX * 0.52 - elbowLX * 0.4;
-      joints.elbowR.y += -shoulderRX * 0.32 - elbowRX * 0.24;
-      joints.wristR.y += -shoulderRX * 0.52 - elbowRX * 0.4;
-
-      joints.elbowL.x += shoulderLY * 0.22;
-      joints.wristL.x += shoulderLY * 0.36;
-      joints.elbowR.x += shoulderRY * 0.22;
-      joints.wristR.x += shoulderRY * 0.36;
-
-      joints.kneeL.y += -hipLX * 0.2 - kneeLX * 0.18;
-      joints.ankleL.y += -hipLX * 0.15 - kneeLX * 0.2;
-      joints.kneeR.y += -hipRX * 0.2 - kneeRX * 0.18;
-      joints.ankleR.y += -hipRX * 0.15 - kneeRX * 0.2;
-
-      joints.kneeL.x += hipLY * 0.22;
-      joints.ankleL.x += hipLY * 0.3;
-      joints.kneeR.x += hipRY * 0.22;
-      joints.ankleR.x += hipRY * 0.3;
-    },
-  },
   {
     id: 'jumping-jacks',
     label: 'Jumping Jacks',
@@ -877,6 +791,92 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
       joints.kneeR.y += bounce * 0.38;
       joints.ankleL.y += bounce * 0.24;
       joints.ankleR.y += bounce * 0.24;
+    },
+  },
+  {
+    id: 'script-preview',
+    label: 'Script Preview',
+    description:
+      'Plays movementStep poses and timed cues (dialogue/text/countdown/camera) from your executed JSON script.',
+    speedMultiplier: 0.45,
+    transform: (joints, phase) => {
+      const getActiveScriptPreviewPose = (): NormalizedPose => {
+        if (scriptPreviewFrames.length === 0) {
+          return currentNormalizedPose;
+        }
+
+        if (scriptPreviewFrames.length === 1) {
+          return scriptPreviewFrames[0].pose;
+        }
+
+        const totalDurationMs = scriptPreviewFrames.reduce((total, frame) => total + frame.durationMs, 0);
+        const loopMs = (currentAnimationSeconds * 1000) % Math.max(1, totalDurationMs);
+        let cursorMs = 0;
+        for (let index = 0; index < scriptPreviewFrames.length; index += 1) {
+          const frame = scriptPreviewFrames[index];
+          const frameStartMs = cursorMs;
+          const frameEndMs = frameStartMs + frame.durationMs;
+          if (loopMs < frameEndMs) {
+            const nextFrame = scriptPreviewFrames[(index + 1) % scriptPreviewFrames.length];
+            const alpha = frame.durationMs > 0 ? (loopMs - frameStartMs) / frame.durationMs : 1;
+            const easedAlpha = clamp(alpha, 0, 1);
+
+            if (!nextFrame || nextFrame === frame || easedAlpha <= 0) {
+              return frame.pose;
+            }
+
+            return interpolateNormalizedTimelinePose(frame.pose, nextFrame.pose, easedAlpha);
+          }
+
+          cursorMs = frameEndMs;
+        }
+
+        return scriptPreviewFrames[scriptPreviewFrames.length - 1].pose;
+      };
+
+      const activePose = getActiveScriptPreviewPose();
+      const getJoint = (jointName: string): [number, number, number, number] => {
+        const rotation = activePose.jointRotations[jointName];
+        if (!rotation) {
+          return [0, 0, 0, 1];
+        }
+
+        return rotation;
+      };
+
+      const [shoulderLX, shoulderLY] = getJoint('shoulderL');
+      const [shoulderRX, shoulderRY] = getJoint('shoulderR');
+      const [elbowLX] = getJoint('elbowL');
+      const [elbowRX] = getJoint('elbowR');
+      const [hipLX, hipLY] = getJoint('hipL');
+      const [hipRX, hipRY] = getJoint('hipR');
+      const [kneeLX] = getJoint('kneeL');
+      const [kneeRX] = getJoint('kneeR');
+
+      const idle = Math.sin(phase * 0.55);
+
+      joints.pelvis.y += idle * 0.02;
+      joints.head.y += idle * 0.018;
+
+      joints.elbowL.y += -shoulderLX * 0.32 - elbowLX * 0.24;
+      joints.wristL.y += -shoulderLX * 0.52 - elbowLX * 0.4;
+      joints.elbowR.y += -shoulderRX * 0.32 - elbowRX * 0.24;
+      joints.wristR.y += -shoulderRX * 0.52 - elbowRX * 0.4;
+
+      joints.elbowL.x += shoulderLY * 0.22;
+      joints.wristL.x += shoulderLY * 0.36;
+      joints.elbowR.x += shoulderRY * 0.22;
+      joints.wristR.x += shoulderRY * 0.36;
+
+      joints.kneeL.y += -hipLX * 0.2 - kneeLX * 0.18;
+      joints.ankleL.y += -hipLX * 0.15 - kneeLX * 0.2;
+      joints.kneeR.y += -hipRX * 0.2 - kneeRX * 0.18;
+      joints.ankleR.y += -hipRX * 0.15 - kneeRX * 0.2;
+
+      joints.kneeL.x += hipLY * 0.22;
+      joints.ankleL.x += hipLY * 0.3;
+      joints.kneeR.x += hipRY * 0.22;
+      joints.ankleR.x += hipRY * 0.3;
     },
   },
 ];
