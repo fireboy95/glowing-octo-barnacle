@@ -10,17 +10,208 @@ import {
 } from './validation/domainValidation3d';
 
 const SAMPLE_INPUT = {
-  pose: {
-    jointRotations: {
-      pelvis: { x: 0, y: 0, z: 0, unit: 'deg' },
-      shoulderL: { x: 20, y: -10, z: 0, unit: 'deg' },
-      elbowL: { x: 45, y: 0, z: 0, unit: 'deg' },
-      shoulderR: { x: 10, y: 5, z: 0, unit: 'deg' },
-      elbowR: { x: 30, y: 0, z: 0, unit: 'deg' },
-      hipL: [0, 0, 0, 1],
-      hipR: [0, 0, 0, 1],
-    },
+  schemaVersion: '1.2.1',
+  type: 'routine',
+  id: 'trainer-kitchen-sink-001',
+  title: 'Trainer Kitchen Sink Demo',
+  description:
+    'Schema-rich demo routine combining trainer exercise steps with dialogue/text/countdown/overlay/filter/camera cues.',
+  bodyModel: 'human-3d-v1',
+  renderHints: {
+    dimension: '3d',
   },
+  items: [
+    {
+      kind: 'exercise',
+      id: 'block-warmup',
+      title: 'Warmup Combo',
+      description: 'Alternating trainer-style warmup poses with smooth transitions.',
+      repeat: 2,
+      metadata: {
+        objective: 'Raise temperature and mobility',
+      },
+      steps: [
+        {
+          kind: 'movementStep',
+          id: 'warmup-neutral',
+          title: 'Neutral Athletic Stance',
+          durationMs: 800,
+          easing: 'easeInOut',
+          transitionMs: 220,
+          blend: 'interpolate',
+          metadata: { cue: 'brace-core' },
+          pose: {
+            jointRotations: {
+              pelvis: { x: 0, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              spineUpper: { x: 6, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              shoulderL: { x: 18, y: -10, z: 6, unit: 'deg', order: 'XYZ' },
+              shoulderR: { x: 18, y: 10, z: -6, unit: 'deg', order: 'XYZ' },
+              elbowL: { x: 28, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              elbowR: { x: 28, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              hipL: [0, 0, 0, 1],
+              hipR: [0, 0, 0, 1],
+              kneeL: [0, 0, 0, 1],
+              kneeR: [0, 0, 0, 1],
+            },
+          },
+        },
+        {
+          kind: 'movementStep',
+          id: 'warmup-squat-load',
+          title: 'Squat Load',
+          durationMs: 720,
+          easing: 'easeOut',
+          transitionMs: 200,
+          blend: 'interpolate',
+          pose: {
+            jointRotations: {
+              pelvis: { x: -8, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              spineUpper: { x: 14, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              shoulderL: { x: 24, y: -8, z: 8, unit: 'deg', order: 'XYZ' },
+              shoulderR: { x: 24, y: 8, z: -8, unit: 'deg', order: 'XYZ' },
+              elbowL: { x: 44, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              elbowR: { x: 44, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              hipL: { x: -24, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              hipR: { x: -24, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              kneeL: { x: 32, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              kneeR: { x: 32, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+            },
+          },
+        },
+        {
+          kind: 'movementStep',
+          id: 'warmup-drive-left',
+          title: 'Left Knee Drive',
+          durationMs: 560,
+          easing: 'easeIn',
+          transitionMs: 180,
+          blend: 'interpolate',
+          pose: {
+            jointRotations: {
+              pelvis: { x: -2, y: -5, z: 0, unit: 'deg', order: 'XYZ' },
+              spineUpper: { x: 12, y: -6, z: 0, unit: 'deg', order: 'XYZ' },
+              shoulderL: { x: 16, y: -24, z: 10, unit: 'deg', order: 'XYZ' },
+              shoulderR: { x: 28, y: 14, z: -10, unit: 'deg', order: 'XYZ' },
+              elbowL: { x: 58, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              elbowR: { x: 40, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              hipL: { x: 18, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              kneeL: { x: -36, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              hipR: { x: -10, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+              kneeR: { x: 22, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+            },
+          },
+        },
+      ],
+    },
+    {
+      kind: 'dialogueCue',
+      id: 'coach-brace',
+      speaker: 'Coach',
+      text: 'Stay tall through your chest and drive through the floor.',
+      audioRef: 'coach/warmup-01.ogg',
+      timing: { startMs: 250, durationMs: 2300 },
+      metadata: { importance: 'high' },
+    },
+    {
+      kind: 'textCue',
+      id: 'on-screen-set',
+      text: 'Block A • Warmup',
+      placement: { x: '50%', y: '10%' },
+      styleToken: 'headline',
+      animationIn: { name: 'fadeInUp', durationMs: 260 },
+      animationOut: { name: 'fadeOut', durationMs: 220 },
+      timing: { startMs: 0, durationMs: 1800 },
+      metadata: { emphasis: 'section-title' },
+    },
+    {
+      kind: 'countdownCue',
+      id: 'set-countdown',
+      startValue: 5,
+      intervalMs: 1000,
+      label: 'Get ready',
+      styleToken: 'countdown',
+      timing: { startMs: 300, durationMs: 5000 },
+      metadata: { audible: true },
+    },
+    {
+      kind: 'overlaySprite',
+      id: 'logo-watermark',
+      asset: 'assets/ui/trainer-badge.svg',
+      anchor: { x: '88%', y: '12%' },
+      scale: 0.82,
+      opacity: 0.92,
+      zIndex: 9,
+      timing: { startMs: 0, durationMs: 4200 },
+      metadata: { role: 'watermark' },
+    },
+    {
+      kind: 'overlayPolygon',
+      id: 'heart-rate-zone',
+      points: [
+        { x: '8%', y: '78%' },
+        { x: '36%', y: '78%' },
+        { x: '36%', y: '92%' },
+        { x: '8%', y: '92%' },
+      ],
+      fill: 'rgba(10, 90, 150, 0.26)',
+      stroke: '#7fd3ff',
+      opacity: 0.8,
+      zIndex: 6,
+      timing: { startMs: 400, durationMs: 3600 },
+      metadata: { role: 'hud' },
+    },
+    {
+      kind: 'videoFilterCue',
+      id: 'filter-energy',
+      filterId: 'film-grain',
+      preset: 'film-grain',
+      intensity: 0.45,
+      blendMode: 'overlay',
+      transitionInMs: 260,
+      transitionOutMs: 280,
+      timing: { startMs: 0, durationMs: 4200 },
+      metadata: { phase: 'warmup' },
+    },
+    {
+      kind: 'cameraCue',
+      id: 'camera-sweep',
+      timing: { startMs: 200, durationMs: 3000 },
+      directives: [
+        { type: 'orbit', angleRad: 0.45, radius: 3.3, height: 1.25, target: { x: 0, y: 0.2, z: 0 }, easing: 'easeInOut' },
+        { type: 'fov', fovDeg: 52, easing: 'easeOut' },
+      ],
+      metadata: { intent: 'show-form' },
+    },
+    {
+      kind: 'rest',
+      id: 'transition-rest',
+      title: 'Reset and breathe',
+      durationMs: 900,
+      metadata: { heartRateTarget: 'zone-2' },
+    },
+    {
+      kind: 'movementStep',
+      id: 'cooldown-neutral',
+      title: 'Cooldown Neutral',
+      durationMs: 1200,
+      easing: 'easeInOut',
+      transitionMs: 260,
+      blend: 'interpolate',
+      pose: {
+        jointRotations: {
+          pelvis: { x: 0, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+          spineUpper: { x: 4, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+          shoulderL: { x: 8, y: -4, z: 0, unit: 'deg', order: 'XYZ' },
+          shoulderR: { x: 8, y: 4, z: 0, unit: 'deg', order: 'XYZ' },
+          elbowL: { x: 16, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+          elbowR: { x: 16, y: 0, z: 0, unit: 'deg', order: 'XYZ' },
+          hipL: [0, 0, 0, 1],
+          hipR: [0, 0, 0, 1],
+        },
+      },
+      metadata: { phase: 'cooldown' },
+    },
+  ],
 };
 
 const CUSTOM_JSON_SCRIPT_AGENT_PROMPT = `# Custom JSON Script Agent Prompt
@@ -550,6 +741,142 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
 
       joints.wristL.x -= sideShift * 0.45;
       joints.wristR.x -= sideShift * 0.45;
+    },
+  },
+  {
+    id: 'reverse-lunge-knee-drive',
+    label: 'Reverse Lunge + Knee Drive',
+    description:
+      'Athletic reverse lunge that transitions into a controlled knee drive, similar to trainer balance drills.',
+    speedMultiplier: 1,
+    transform: (joints, phase, cycle) => {
+      const leftLead = cycle;
+      const rightLead = -cycle;
+      const leftDepth = Math.max(0, leftLead);
+      const rightDepth = Math.max(0, rightLead);
+      const leftDrive = Math.max(0, -leftLead);
+      const rightDrive = Math.max(0, -rightLead);
+      const torsoCounter = Math.sin(phase) * 0.07;
+
+      joints.pelvis.y -= (leftDepth + rightDepth) * 0.16;
+      joints.pelvis.x += (rightDepth - leftDepth) * 0.08;
+      joints.spineUpper.z += (leftDepth + rightDepth) * 0.1;
+      joints.spineUpper.x += torsoCounter;
+
+      joints.kneeL.y += leftDepth * 0.2 + leftDrive * 0.28;
+      joints.ankleL.y += leftDepth * 0.06 + leftDrive * 0.14;
+      joints.kneeL.z += leftDepth * 0.12 + leftDrive * 0.2;
+
+      joints.kneeR.y += rightDepth * 0.2 + rightDrive * 0.28;
+      joints.ankleR.y += rightDepth * 0.06 + rightDrive * 0.14;
+      joints.kneeR.z += rightDepth * 0.12 + rightDrive * 0.2;
+
+      joints.elbowL.y += rightDepth * 0.14 + leftDrive * 0.18;
+      joints.wristL.y += rightDepth * 0.2 + leftDrive * 0.25;
+      joints.elbowR.y += leftDepth * 0.14 + rightDrive * 0.18;
+      joints.wristR.y += leftDepth * 0.2 + rightDrive * 0.25;
+    },
+  },
+  {
+    id: 'mountain-climbers',
+    label: 'Mountain Climbers',
+    description: 'Plank-position knee drives with alternating leg action and stable shoulder loading.',
+    speedMultiplier: 1.8,
+    transform: (joints, phase, cycle) => {
+      const leftDrive = cycle;
+      const rightDrive = -cycle;
+      const leftTuck = Math.max(0, leftDrive);
+      const rightTuck = Math.max(0, rightDrive);
+      const baseLean = 0.22;
+      const plankBounce = Math.abs(Math.sin(phase)) * 0.04;
+
+      joints.pelvis.y -= 0.22 - plankBounce;
+      joints.pelvis.z += baseLean;
+      joints.spineLower.z += baseLean * 0.7;
+      joints.spineUpper.z += baseLean;
+      joints.head.z += baseLean * 1.05;
+
+      joints.kneeL.y += leftTuck * 0.34;
+      joints.ankleL.y += leftTuck * 0.22;
+      joints.kneeL.z += leftTuck * 0.3;
+      joints.ankleL.z += leftTuck * 0.16;
+
+      joints.kneeR.y += rightTuck * 0.34;
+      joints.ankleR.y += rightTuck * 0.22;
+      joints.kneeR.z += rightTuck * 0.3;
+      joints.ankleR.z += rightTuck * 0.16;
+
+      joints.shoulderL.y -= plankBounce * 0.6;
+      joints.shoulderR.y -= plankBounce * 0.6;
+      joints.wristL.y -= plankBounce * 0.4;
+      joints.wristR.y -= plankBounce * 0.4;
+    },
+  },
+  {
+    id: 'skater-hops',
+    label: 'Skater Hops',
+    description: 'Lateral power hops with opposite-leg trail and athletic arm swing for rhythm and control.',
+    speedMultiplier: 1.25,
+    transform: (joints, phase) => {
+      const travel = Math.sin(phase) * 0.28;
+      const landing = Math.abs(Math.sin(phase));
+      const leftLoaded = travel < 0;
+      const trailOffset = leftLoaded ? 0.18 : -0.18;
+
+      joints.pelvis.x += travel;
+      joints.pelvis.y -= landing * 0.1;
+      joints.spineUpper.x += travel * 0.45;
+      joints.head.x += travel * 0.28;
+
+      joints.kneeL.y += leftLoaded ? landing * 0.22 : landing * 0.08;
+      joints.kneeR.y += leftLoaded ? landing * 0.08 : landing * 0.22;
+      joints.ankleL.x += leftLoaded ? -0.03 : trailOffset;
+      joints.ankleR.x += leftLoaded ? trailOffset : 0.03;
+
+      joints.kneeL.z += leftLoaded ? landing * 0.18 : landing * 0.06;
+      joints.kneeR.z += leftLoaded ? landing * 0.06 : landing * 0.18;
+
+      joints.elbowL.x -= travel * 0.55;
+      joints.wristL.x -= travel * 0.72;
+      joints.elbowR.x -= travel * 0.55;
+      joints.wristR.x -= travel * 0.72;
+      joints.wristL.y += landing * 0.14;
+      joints.wristR.y += landing * 0.14;
+    },
+  },
+  {
+    id: 'shadow-boxing',
+    label: 'Shadow Boxing Combo',
+    description: 'Alternating jab-cross style strikes with trunk rotation and relaxed bounce between punches.',
+    speedMultiplier: 1.7,
+    transform: (joints, phase, cycle) => {
+      const pulse = cycle;
+      const counterPulse = -cycle;
+      const leftPunch = Math.max(0, pulse);
+      const rightPunch = Math.max(0, counterPulse);
+      const bounce = Math.abs(Math.sin(phase)) * 0.05;
+      const trunkTwist = (rightPunch - leftPunch) * 0.14;
+
+      joints.pelvis.y += bounce;
+      joints.spineUpper.x += trunkTwist;
+      joints.head.x += trunkTwist * 0.45;
+
+      joints.elbowL.x -= leftPunch * 0.24;
+      joints.wristL.x -= leftPunch * 0.36;
+      joints.elbowL.z += leftPunch * 0.14;
+      joints.wristL.z += leftPunch * 0.22;
+      joints.wristL.y += leftPunch * 0.14;
+
+      joints.elbowR.x += rightPunch * 0.24;
+      joints.wristR.x += rightPunch * 0.36;
+      joints.elbowR.z += rightPunch * 0.14;
+      joints.wristR.z += rightPunch * 0.22;
+      joints.wristR.y += rightPunch * 0.14;
+
+      joints.kneeL.y += bounce * 0.38;
+      joints.kneeR.y += bounce * 0.38;
+      joints.ankleL.y += bounce * 0.24;
+      joints.ankleR.y += bounce * 0.24;
     },
   },
 ];
