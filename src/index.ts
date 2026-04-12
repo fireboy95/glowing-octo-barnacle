@@ -552,6 +552,142 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
       joints.wristR.x -= sideShift * 0.45;
     },
   },
+  {
+    id: 'reverse-lunge-knee-drive',
+    label: 'Reverse Lunge + Knee Drive',
+    description:
+      'Athletic reverse lunge that transitions into a controlled knee drive, similar to trainer balance drills.',
+    speedMultiplier: 1,
+    transform: (joints, phase, cycle) => {
+      const leftLead = cycle;
+      const rightLead = -cycle;
+      const leftDepth = Math.max(0, leftLead);
+      const rightDepth = Math.max(0, rightLead);
+      const leftDrive = Math.max(0, -leftLead);
+      const rightDrive = Math.max(0, -rightLead);
+      const torsoCounter = Math.sin(phase) * 0.07;
+
+      joints.pelvis.y -= (leftDepth + rightDepth) * 0.16;
+      joints.pelvis.x += (rightDepth - leftDepth) * 0.08;
+      joints.spineUpper.z += (leftDepth + rightDepth) * 0.1;
+      joints.spineUpper.x += torsoCounter;
+
+      joints.kneeL.y += leftDepth * 0.2 + leftDrive * 0.28;
+      joints.ankleL.y += leftDepth * 0.06 + leftDrive * 0.14;
+      joints.kneeL.z += leftDepth * 0.12 + leftDrive * 0.2;
+
+      joints.kneeR.y += rightDepth * 0.2 + rightDrive * 0.28;
+      joints.ankleR.y += rightDepth * 0.06 + rightDrive * 0.14;
+      joints.kneeR.z += rightDepth * 0.12 + rightDrive * 0.2;
+
+      joints.elbowL.y += rightDepth * 0.14 + leftDrive * 0.18;
+      joints.wristL.y += rightDepth * 0.2 + leftDrive * 0.25;
+      joints.elbowR.y += leftDepth * 0.14 + rightDrive * 0.18;
+      joints.wristR.y += leftDepth * 0.2 + rightDrive * 0.25;
+    },
+  },
+  {
+    id: 'mountain-climbers',
+    label: 'Mountain Climbers',
+    description: 'Plank-position knee drives with alternating leg action and stable shoulder loading.',
+    speedMultiplier: 1.8,
+    transform: (joints, phase, cycle) => {
+      const leftDrive = cycle;
+      const rightDrive = -cycle;
+      const leftTuck = Math.max(0, leftDrive);
+      const rightTuck = Math.max(0, rightDrive);
+      const baseLean = 0.22;
+      const plankBounce = Math.abs(Math.sin(phase)) * 0.04;
+
+      joints.pelvis.y -= 0.22 - plankBounce;
+      joints.pelvis.z += baseLean;
+      joints.spineLower.z += baseLean * 0.7;
+      joints.spineUpper.z += baseLean;
+      joints.head.z += baseLean * 1.05;
+
+      joints.kneeL.y += leftTuck * 0.34;
+      joints.ankleL.y += leftTuck * 0.22;
+      joints.kneeL.z += leftTuck * 0.3;
+      joints.ankleL.z += leftTuck * 0.16;
+
+      joints.kneeR.y += rightTuck * 0.34;
+      joints.ankleR.y += rightTuck * 0.22;
+      joints.kneeR.z += rightTuck * 0.3;
+      joints.ankleR.z += rightTuck * 0.16;
+
+      joints.shoulderL.y -= plankBounce * 0.6;
+      joints.shoulderR.y -= plankBounce * 0.6;
+      joints.wristL.y -= plankBounce * 0.4;
+      joints.wristR.y -= plankBounce * 0.4;
+    },
+  },
+  {
+    id: 'skater-hops',
+    label: 'Skater Hops',
+    description: 'Lateral power hops with opposite-leg trail and athletic arm swing for rhythm and control.',
+    speedMultiplier: 1.25,
+    transform: (joints, phase) => {
+      const travel = Math.sin(phase) * 0.28;
+      const landing = Math.abs(Math.sin(phase));
+      const leftLoaded = travel < 0;
+      const trailOffset = leftLoaded ? 0.18 : -0.18;
+
+      joints.pelvis.x += travel;
+      joints.pelvis.y -= landing * 0.1;
+      joints.spineUpper.x += travel * 0.45;
+      joints.head.x += travel * 0.28;
+
+      joints.kneeL.y += leftLoaded ? landing * 0.22 : landing * 0.08;
+      joints.kneeR.y += leftLoaded ? landing * 0.08 : landing * 0.22;
+      joints.ankleL.x += leftLoaded ? -0.03 : trailOffset;
+      joints.ankleR.x += leftLoaded ? trailOffset : 0.03;
+
+      joints.kneeL.z += leftLoaded ? landing * 0.18 : landing * 0.06;
+      joints.kneeR.z += leftLoaded ? landing * 0.06 : landing * 0.18;
+
+      joints.elbowL.x -= travel * 0.55;
+      joints.wristL.x -= travel * 0.72;
+      joints.elbowR.x -= travel * 0.55;
+      joints.wristR.x -= travel * 0.72;
+      joints.wristL.y += landing * 0.14;
+      joints.wristR.y += landing * 0.14;
+    },
+  },
+  {
+    id: 'shadow-boxing',
+    label: 'Shadow Boxing Combo',
+    description: 'Alternating jab-cross style strikes with trunk rotation and relaxed bounce between punches.',
+    speedMultiplier: 1.7,
+    transform: (joints, phase, cycle) => {
+      const pulse = cycle;
+      const counterPulse = -cycle;
+      const leftPunch = Math.max(0, pulse);
+      const rightPunch = Math.max(0, counterPulse);
+      const bounce = Math.abs(Math.sin(phase)) * 0.05;
+      const trunkTwist = (rightPunch - leftPunch) * 0.14;
+
+      joints.pelvis.y += bounce;
+      joints.spineUpper.x += trunkTwist;
+      joints.head.x += trunkTwist * 0.45;
+
+      joints.elbowL.x -= leftPunch * 0.24;
+      joints.wristL.x -= leftPunch * 0.36;
+      joints.elbowL.z += leftPunch * 0.14;
+      joints.wristL.z += leftPunch * 0.22;
+      joints.wristL.y += leftPunch * 0.14;
+
+      joints.elbowR.x += rightPunch * 0.24;
+      joints.wristR.x += rightPunch * 0.36;
+      joints.elbowR.z += rightPunch * 0.14;
+      joints.wristR.z += rightPunch * 0.22;
+      joints.wristR.y += rightPunch * 0.14;
+
+      joints.kneeL.y += bounce * 0.38;
+      joints.kneeR.y += bounce * 0.38;
+      joints.ankleL.y += bounce * 0.24;
+      joints.ankleR.y += bounce * 0.24;
+    },
+  },
 ];
 
 function getSelectedRoutine(): AnimationRoutine {
