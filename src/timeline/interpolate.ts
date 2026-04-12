@@ -99,32 +99,51 @@ export function interpolateNormalizedTimelinePose(
   alpha: number,
   easing: EasingFunction = (value) => value,
 ): NormalizedPose3D {
+  const fromPose = (from ?? {}) as Partial<NormalizedPose3D>;
+  const toPose = (to ?? {}) as Partial<NormalizedPose3D>;
+  const fromJointRotations = fromPose.jointRotations ?? {};
+  const toJointRotations = toPose.jointRotations ?? {};
+  const bodyModel = fromPose.bodyModel ?? toPose.bodyModel;
+
+  if (!bodyModel) {
+    return {
+      bodyModel: 'human-3d-v1',
+      jointRotations: {},
+    };
+  }
+
   const easedT = clamp01(easing(clamp01(alpha)));
 
   if (easedT <= 0) {
-    return from;
+    return {
+      bodyModel,
+      jointRotations: { ...fromJointRotations },
+    };
   }
 
   if (easedT >= 1) {
-    return to;
+    return {
+      bodyModel,
+      jointRotations: { ...toJointRotations },
+    };
   }
 
   const jointNames = new Set<string>([
-    ...Object.keys(from.jointRotations),
-    ...Object.keys(to.jointRotations),
+    ...Object.keys(fromJointRotations),
+    ...Object.keys(toJointRotations),
   ]);
 
   const jointRotations: NormalizedPose3D['jointRotations'] = {};
 
   for (const jointName of jointNames) {
-    const fromJoint = from.jointRotations[jointName] ?? [0, 0, 0, 1];
-    const toJoint = to.jointRotations[jointName] ?? fromJoint;
+    const fromJoint = fromJointRotations[jointName] ?? [0, 0, 0, 1];
+    const toJoint = toJointRotations[jointName] ?? fromJoint;
 
     jointRotations[jointName] = slerpQuaternion(fromJoint, toJoint, easedT);
   }
 
   return {
-    bodyModel: from.bodyModel,
+    bodyModel,
     jointRotations,
   };
 }
