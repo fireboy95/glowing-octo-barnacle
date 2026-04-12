@@ -11,17 +11,23 @@ export function PolygonPrimitivesLayer({ polygons }: PolygonPrimitivesLayerProps
   }
 
   return (
-    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} viewBox="0 0 100 100" preserveAspectRatio="none">
+    <>
       {polygons.map((polygon, index) => (
-        <polygon
+        <svg
           key={index}
-          points={polygon.points.map((point) => `${point.x},${point.y}`).join(' ')}
-          stroke={polygon.stroke ?? '#ffffff'}
-          fill={polygon.fill ?? 'transparent'}
-          strokeWidth={polygon.strokeWidth ?? 1}
-          opacity={polygon.opacity ?? 1}
-        />
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: polygon.zIndex }}
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          <polygon
+            points={polygon.points.map((point) => `${point.x},${point.y}`).join(' ')}
+            stroke={polygon.stroke ?? '#ffffff'}
+            fill={polygon.fill ?? 'transparent'}
+            strokeWidth={polygon.strokeWidth ?? 1}
+            opacity={polygon.opacity ?? 1}
+          />
+        </svg>
       ))}
-    </svg>
+    </>
   );
 }

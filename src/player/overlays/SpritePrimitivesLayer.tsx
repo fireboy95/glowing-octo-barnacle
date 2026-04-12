@@ -30,6 +30,7 @@ export function SpritePrimitivesLayer({ sprites }: SpritePrimitivesLayerProps): 
               transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`,
               transformOrigin: 'center',
               opacity: sprite.opacity ?? 1,
+              zIndex: sprite.zIndex,
             }}
           />
         );
