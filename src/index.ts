@@ -801,12 +801,13 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
     speedMultiplier: 0.45,
     transform: (joints, phase) => {
       const getActiveScriptPreviewPose = (): NormalizedPose => {
+        const fallbackPose = currentNormalizedPose;
         if (scriptPreviewFrames.length === 0) {
-          return currentNormalizedPose;
+          return fallbackPose;
         }
 
         if (scriptPreviewFrames.length === 1) {
-          return scriptPreviewFrames[0].pose;
+          return scriptPreviewFrames[0]?.pose ?? fallbackPose;
         }
 
         const totalDurationMs = scriptPreviewFrames.reduce((total, frame) => total + frame.durationMs, 0);
@@ -822,7 +823,11 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
             const easedAlpha = clamp(alpha, 0, 1);
 
             if (!nextFrame || nextFrame === frame || easedAlpha <= 0) {
-              return frame.pose;
+              return frame.pose ?? fallbackPose;
+            }
+
+            if (!frame.pose || !nextFrame.pose) {
+              return frame.pose ?? nextFrame.pose ?? fallbackPose;
             }
 
             return interpolateNormalizedTimelinePose(frame.pose, nextFrame.pose, easedAlpha);
@@ -831,12 +836,12 @@ const EXERCISE_ROUTINES: AnimationRoutine[] = [
           cursorMs = frameEndMs;
         }
 
-        return scriptPreviewFrames[scriptPreviewFrames.length - 1].pose;
+        return scriptPreviewFrames[scriptPreviewFrames.length - 1]?.pose ?? fallbackPose;
       };
 
       const activePose = getActiveScriptPreviewPose();
       const getJoint = (jointName: string): [number, number, number, number] => {
-        const rotation = activePose.jointRotations[jointName];
+        const rotation = activePose?.jointRotations?.[jointName];
         if (!rotation) {
           return [0, 0, 0, 1];
         }
