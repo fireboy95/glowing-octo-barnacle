@@ -1,5 +1,5 @@
 import { buildRendererFrame } from './renderer';
-import { resolveActiveCameraCue, resolveNextCameraCue, type CameraCue } from './renderer3d/PlaybackBridge';
+import { resolveActiveCameraCue, resolveNextCameraCue, type CameraCue, type OverlayCue } from './renderer3d/PlaybackBridge';
 import { interpolateNormalizedTimelinePose } from './timeline';
 import Ajv2020 from 'ajv/dist/2020';
 import routineSchema from '../schema/routine-1.1.0.schema.json';
@@ -263,9 +263,14 @@ interface ScriptPreviewCameraCue {
   cue: CameraCue;
 }
 
+interface ScriptPreviewOverlayCue {
+  cue: OverlayCue;
+}
+
 let scriptPreviewFrames: ScriptPreviewFrame[] = [{ pose: currentNormalizedPose, durationMs: 1500 }];
 let scriptPreviewTextCues: ScriptPreviewTextCue[] = [];
 let scriptPreviewCameraCues: ScriptPreviewCameraCue[] = [];
+let scriptPreviewOverlayCues: ScriptPreviewOverlayCue[] = [];
 let scriptPreviewTotalDurationMs = 1500;
 let currentAnimationSeconds = 0;
 let animationHandle: number | null = null;
@@ -1150,6 +1155,7 @@ function runRenderer(): void {
     const scriptPreviewCues = resolveScriptPreviewCues(parsedInput);
     scriptPreviewTextCues = scriptPreviewCues.textCues;
     scriptPreviewCameraCues = scriptPreviewCues.cameraCues;
+    scriptPreviewOverlayCues = scriptPreviewCues.overlayCues;
     scriptPreviewTotalDurationMs = scriptPreviewCues.totalDurationMs;
     selectedRoutineId = 'script-preview';
     const routineSelect = document.getElementById('animation-routine');
@@ -1280,10 +1286,12 @@ function resolveScriptPreviewFrames(parsedInput: unknown, fallbackPose: Normaliz
 function resolveScriptPreviewCues(parsedInput: unknown): {
   textCues: ScriptPreviewTextCue[];
   cameraCues: ScriptPreviewCameraCue[];
+  overlayCues: ScriptPreviewOverlayCue[];
   totalDurationMs: number;
 } {
   const textCues: ScriptPreviewTextCue[] = [];
   const cameraCues: ScriptPreviewCameraCue[] = [];
+  const overlayCues: ScriptPreviewOverlayCue[] = [];
   let cursorMs = 0;
 
   const getTimingWindow = (item: { timing?: unknown }): { startMs: number; durationMs: number } | null => {
@@ -1315,6 +1323,19 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
       startValue?: unknown;
       intervalMs?: unknown;
       directives?: unknown;
+      points?: unknown;
+      fill?: unknown;
+      stroke?: unknown;
+      opacity?: unknown;
+      zIndex?: unknown;
+      asset?: unknown;
+      anchor?: unknown;
+      scale?: unknown;
+      filterId?: unknown;
+      preset?: unknown;
+      intensity?: unknown;
+      transitionInMs?: unknown;
+      transitionOutMs?: unknown;
     };
 
     if (candidate.kind === 'movementStep' || candidate.kind === 'rest') {
@@ -1362,6 +1383,75 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
         text: '',
         startValue: Math.round(candidate.startValue),
         intervalMs: Math.round(candidate.intervalMs),
+      });
+      return;
+    }
+
+    if (candidate.kind === 'overlayPolygon' && Array.isArray(candidate.points)) {
+      const points = candidate.points
+        .map((point) => {
+          if (typeof point !== 'object' || point === null) {
+            return null;
+          }
+          const candidatePoint = point as { x?: unknown; y?: unknown };
+          return {
+            x: candidatePoint.x,
+            y: candidatePoint.y,
+          };
+        })
+        .filter((point): point is { x: unknown; y: unknown } => point !== null);
+      if (points.length >= 3) {
+        overlayCues.push({
+          cue: {
+            type: 'polygon',
+            timeMs: startMs,
+            endTimeMs: endMs,
+            payload: {
+              points,
+              fill: typeof candidate.fill === 'string' ? candidate.fill : undefined,
+              stroke: typeof candidate.stroke === 'string' ? candidate.stroke : undefined,
+              opacity: typeof candidate.opacity === 'number' ? candidate.opacity : undefined,
+              zIndex: typeof candidate.zIndex === 'number' ? Math.round(candidate.zIndex) : undefined,
+            },
+          },
+        });
+      }
+      return;
+    }
+
+    if (candidate.kind === 'overlaySprite' && typeof candidate.asset === 'string') {
+      overlayCues.push({
+        cue: {
+          type: 'sprite',
+          timeMs: startMs,
+          endTimeMs: endMs,
+          payload: {
+            asset: candidate.asset,
+            anchor: candidate.anchor,
+            scale: typeof candidate.scale === 'number' ? candidate.scale : undefined,
+            opacity: typeof candidate.opacity === 'number' ? candidate.opacity : undefined,
+            zIndex: typeof candidate.zIndex === 'number' ? Math.round(candidate.zIndex) : undefined,
+          },
+        },
+      });
+      return;
+    }
+
+    if (candidate.kind === 'videoFilterCue' && typeof candidate.filterId === 'string') {
+      overlayCues.push({
+        cue: {
+          type: 'theme',
+          timeMs: startMs,
+          endTimeMs: endMs,
+          payload: {
+            filterId: candidate.filterId,
+            preset: typeof candidate.preset === 'string' ? candidate.preset : undefined,
+            intensity: typeof candidate.intensity === 'number' ? candidate.intensity : undefined,
+            transitionInMs: typeof candidate.transitionInMs === 'number' ? candidate.transitionInMs : undefined,
+            transitionOutMs: typeof candidate.transitionOutMs === 'number' ? candidate.transitionOutMs : undefined,
+            themeId: typeof candidate.preset === 'string' ? candidate.preset : candidate.filterId,
+          },
+        },
       });
       return;
     }
@@ -1481,11 +1571,12 @@ function resolveScriptPreviewCues(parsedInput: unknown): {
     }
   }
 
-  const maxCueEndMs = [...textCues.map((cue) => cue.endMs), ...cameraCues.map((cue) => cue.cue.endTimeMs ?? cue.cue.timeMs)].reduce(
-    (max, current) => Math.max(max, current),
-    0,
-  );
-  return { textCues, cameraCues, totalDurationMs: Math.max(cursorMs, maxCueEndMs, 1500) };
+  const maxCueEndMs = [
+    ...textCues.map((cue) => cue.endMs),
+    ...cameraCues.map((cue) => cue.cue.endTimeMs ?? cue.cue.timeMs),
+    ...overlayCues.map((cue) => cue.cue.endTimeMs ?? cue.cue.timeMs),
+  ].reduce((max, current) => Math.max(max, current), 0);
+  return { textCues, cameraCues, overlayCues, totalDurationMs: Math.max(cursorMs, maxCueEndMs, 1500) };
 }
 
 function mountApp(): void {

@@ -43,6 +43,7 @@ export interface PolygonPrimitive {
   fill?: string;
   strokeWidth?: number;
   opacity?: number;
+  zIndex?: number;
 }
 
 export interface SpritePrimitive {
@@ -54,6 +55,7 @@ export interface SpritePrimitive {
   rotationDeg?: number;
   opacity?: number;
   scale?: number;
+  zIndex?: number;
 }
 
 export interface PlayerOverlayState {
