@@ -23,7 +23,9 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
 }
 
-function parseUnitValueAsPercent(value: unknown): number | undefined {
+const DEFAULT_OVERLAY_VIEWPORT = { widthPx: 1920, heightPx: 1080 } as const;
+
+function parsePositionUnitValue(value: unknown, axis: 'x' | 'y'): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }
@@ -40,7 +42,12 @@ function parseUnitValueAsPercent(value: unknown): number | undefined {
 
   if (trimmed.endsWith('px')) {
     const numericValue = Number.parseFloat(trimmed.slice(0, -2));
-    return Number.isFinite(numericValue) ? numericValue : undefined;
+    if (!Number.isFinite(numericValue)) {
+      return undefined;
+    }
+
+    const axisSize = axis === 'x' ? DEFAULT_OVERLAY_VIEWPORT.widthPx : DEFAULT_OVERLAY_VIEWPORT.heightPx;
+    return (numericValue / axisSize) * 100;
   }
 
   const numericValue = Number.parseFloat(trimmed);
@@ -110,8 +117,8 @@ function parsePolygonCue(cue: OverlayCue): PolygonPrimitive | undefined {
     .map((point) => asRecord(point))
     .filter((point): point is Record<string, unknown> => Boolean(point))
     .map((point) => ({
-      x: parseUnitValueAsPercent(point.x) ?? NaN,
-      y: parseUnitValueAsPercent(point.y) ?? NaN,
+      x: parsePositionUnitValue(point.x, 'x') ?? NaN,
+      y: parsePositionUnitValue(point.y, 'y') ?? NaN,
     }))
     .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
 
@@ -131,17 +138,17 @@ function parsePolygonCue(cue: OverlayCue): PolygonPrimitive | undefined {
 
 function parseSpriteCue(cue: OverlayCue): SpritePrimitive | undefined {
   const src = getString(cue.payload, 'src') ?? getString(cue.payload, 'asset');
-  const xFromPayload = getNumber(cue.payload, 'x');
-  const yFromPayload = getNumber(cue.payload, 'y');
+  const xFromPayload = parsePositionUnitValue(cue.payload?.x, 'x');
+  const yFromPayload = parsePositionUnitValue(cue.payload?.y, 'y');
   const width = getNumber(cue.payload, 'width');
   const height = getNumber(cue.payload, 'height');
   const anchor = cue.payload?.anchor;
   const anchorRecord = asRecord(anchor);
   const anchorKeyword = typeof anchor === 'string' ? resolveAnchorKeyword(anchor) : undefined;
   const xFromAnchor =
-    anchorKeyword?.x ?? (anchorRecord ? parseUnitValueAsPercent(anchorRecord.x) : undefined);
+    anchorKeyword?.x ?? (anchorRecord ? parsePositionUnitValue(anchorRecord.x, 'x') : undefined);
   const yFromAnchor =
-    anchorKeyword?.y ?? (anchorRecord ? parseUnitValueAsPercent(anchorRecord.y) : undefined);
+    anchorKeyword?.y ?? (anchorRecord ? parsePositionUnitValue(anchorRecord.y, 'y') : undefined);
   const x = xFromPayload ?? xFromAnchor ?? 50;
   const y = yFromPayload ?? yFromAnchor ?? 50;
 
