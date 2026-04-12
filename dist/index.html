@@ -170,24 +170,37 @@
           new URL(relativeUrl, window.location.href).toString(),
         );
 
+        function renderLoaderError(message, includeAttemptedUrls) {
+          const appRoot = document.getElementById('app');
+          if (!appRoot) {
+            return;
+          }
+
+          const attempted = includeAttemptedUrls
+            ? `<p>Attempted URLs:</p><ul>${candidateBundleUrls.map((url) => `<li><code>${url}</code></li>`).join('')}</ul>`
+            : '';
+
+          appRoot.innerHTML = `
+            <main>
+              <h1>Renderer Input Runner</h1>
+              <p>${message}</p>
+              ${attempted}
+              <p>Run <code>npm install</code>, then <code>npm run build</code>.</p>
+              <p>Also check DevTools Console for runtime errors.</p>
+            </main>
+          `;
+        }
+
+        window.addEventListener('error', function handleRuntimeError(event) {
+          const message = event && event.message ? event.message : 'The app failed during startup.';
+          renderLoaderError(`JavaScript runtime error: ${message}`, false);
+        });
+
         function injectScript(index) {
           const bundleUrl = candidateBundleUrls[index];
 
           if (!bundleUrl) {
-            const appRoot = document.getElementById('app');
-            if (!appRoot) {
-              return;
-            }
-
-            appRoot.innerHTML = `
-              <main>
-                <h1>Renderer Input Runner</h1>
-                <p>Could not load the JavaScript bundle.</p>
-                <p>Attempted URLs:</p>
-                <ul>${candidateBundleUrls.map((url) => `<li><code>${url}</code></li>`).join('')}</ul>
-                <p>Run <code>npm install</code>, then <code>npm run build</code>.</p>
-              </main>
-            `;
+            renderLoaderError('Could not load the JavaScript bundle.', true);
             return;
           }
 
@@ -201,6 +214,17 @@
         }
 
         injectScript(0);
+
+        window.setTimeout(function verifyAppBooted() {
+          const appRoot = document.getElementById('app');
+          if (!appRoot) {
+            return;
+          }
+
+          if (appRoot.textContent && appRoot.textContent.includes('Loading app')) {
+            renderLoaderError('The bundle loaded but the app did not mount.', false);
+          }
+        }, 3500);
       })();
     </script>
   </body>
